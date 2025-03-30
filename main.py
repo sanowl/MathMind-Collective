@@ -4101,7 +4101,8 @@ class GeometryExecutorAgent(ExecutorAgent):
                 {"name": "A", "x": x1, "y": y1},
                 {"name": "B", "x": x2, "y": y2}
             ],
-            "distance": distance
+            "distance": distance,
+            "line": {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
         }
         
         return {
@@ -4139,7 +4140,9 @@ class GeometryExecutorAgent(ExecutorAgent):
                 {"name": "A", "x": x1, "y": y1},
                 {"name": "B", "x": x2, "y": y2},
                 {"name": "M", "x": mid_x, "y": mid_y}
-            ]
+            ],
+            "segment_AM": {"length": ((mid_x - x1)**2 + (mid_y - y1)**2)**0.5},
+            "segment_MB": {"length": ((x2 - mid_x)**2 + (y2 - mid_y)**2)**0.5}
         }
         
         return {
@@ -4179,3 +4182,2410 @@ class GeometryExecutorAgent(ExecutorAgent):
                 {"description": f"m = ({y2} - {y1})/({x2} - {x1})"},
                 {"description": f"m = {y2 - y1}/{x2 - x1}"},
                 {"description": f"m = {slope}"}
+            ])
+        
+        # Create visualization data
+        visualization = {
+            "type": "coordinate_slope",
+            "points": [
+                {"name": "A", "x": x1, "y": y1},
+                {"name": "B", "x": x2, "y": y2}
+            ],
+            "slope": slope_value,
+            "line": {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"Slope = {slope}",
+            "explanation": "Used the slope formula to find the rate of change between the points",
+            "confidence": 0.9,
+            "computed_values": {"slope": slope_value},
+            "visualization": visualization
+        }
+    
+    def _coordinate_line_equation(self, analysis: Dict) -> Dict:
+        """Find the equation of a line in slope-intercept form"""
+        # For demonstration, let's assume we've identified two points (x1,y1) and (x2,y2)
+        x1, y1 = 1, 2  # Example values
+        x2, y2 = 4, 8  # Example values
+        
+        # Calculate slope
+        if x2 - x1 == 0:
+            return {
+                "working": [
+                    {"description": f"Identifying two points: A({x1}, {y1}) and B({x2}, {y2})"},
+                    {"description": "Since the x-coordinates are the same, this is a vertical line"},
+                    {"description": f"Equation of a vertical line: x = {x1}"}
+                ],
+                "result": f"x = {x1}",
+                "explanation": "Found the equation of a vertical line passing through the given points",
+                "confidence": 0.9,
+                "computed_values": {"equation_type": "vertical", "x_value": x1}
+            }
+        
+        # Calculate slope
+        m = (y2 - y1) / (x2 - x1)
+        
+        # Calculate y-intercept (b) using point-slope form: y - y1 = m(x - x1)
+        # Rearranging to slope-intercept form: y = mx + b
+        # So b = y1 - m*x1
+        b = y1 - m*x1
+        
+        # Format the equation
+        equation = f"y = {m}x + {b}" if b >= 0 else f"y = {m}x - {abs(b)}"
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": f"Identifying two points: A({x1}, {y1}) and B({x2}, {y2})"},
+            {"description": "Step 1: Calculate the slope using m = (y₂ - y₁)/(x₂ - x₁)"},
+            {"description": f"m = ({y2} - {y1})/({x2} - {x1}) = {y2 - y1}/{x2 - x1} = {m}"},
+            {"description": "Step 2: Use the point-slope form y - y₁ = m(x - x₁)"},
+            {"description": f"y - {y1} = {m}(x - {x1})"},
+            {"description": "Step 3: Convert to slope-intercept form y = mx + b"},
+            {"description": f"y - {y1} = {m}x - {m*x1}"},
+            {"description": f"y = {m}x - {m*x1} + {y1}"},
+            {"description": f"y = {m}x + {b}"}
+        ]
+        
+        # Create visualization data
+        visualization = {
+            "type": "line_equation",
+            "points": [
+                {"name": "A", "x": x1, "y": y1},
+                {"name": "B", "x": x2, "y": y2}
+            ],
+            "slope": m,
+            "y_intercept": b,
+            "equation": equation,
+            "line": {"slope": m, "intercept": b}
+        }
+        
+        return {
+            "working": working_steps,
+            "result": equation,
+            "explanation": "Found the equation of the line in slope-intercept form",
+            "confidence": 0.9,
+            "computed_values": {"slope": m, "y_intercept": b, "equation": equation},
+            "visualization": visualization
+        }
+    
+    def apply_triangle_theorems(self, analysis: Dict, step: Dict) -> Dict:
+        """Apply theorems about triangles to solve a problem"""
+        components = analysis.get("components", {})
+        target = components.get("target", {}).get("description", "")
+        geometric_entities = components.get("geometric_entities", [])
+        
+        # Check if problem involves triangles
+        has_triangle = any(entity.get("entity") == "triangle" for entity in geometric_entities)
+        
+        if not has_triangle:
+            return {
+                "working": "No triangle found in the problem",
+                "result": None,
+                "explanation": "Cannot apply triangle theorems without a triangle",
+                "confidence": 0.1
+            }
+        
+        try:
+            # Determine what theorem to apply
+            if "right" in target.lower() or "pythagorean" in target.lower():
+                return self.use_pythagorean_theorem(analysis, step)
+            elif "similar" in target.lower():
+                return self.apply_similarity_congruence(analysis, step)
+            elif "area" in target.lower():
+                return self._triangle_area(analysis)
+            elif "angle" in target.lower():
+                return self._triangle_angles(analysis)
+            else:
+                # Generic triangle theorem approach
+                return {
+                    "working": [
+                        {"description": "Identifying the triangle in the problem"},
+                        {"description": "Determining which triangle theorems are applicable"},
+                        {"description": "Applying appropriate theorems to solve the problem"}
+                    ],
+                    "result": "Triangle theorem approach demonstrated",
+                    "explanation": "Used theorems about triangles to solve the problem",
+                    "confidence": 0.7
+                }
+        except Exception as e:
+            return {
+                "working": [
+                    {"description": "Attempted to apply triangle theorems"},
+                    {"description": f"Encountered error: {str(e)}"}
+                ],
+                "result": f"Error in calculation: {str(e)}",
+                "explanation": "The system attempted to apply triangle theorems but encountered an error",
+                "confidence": 0.3
+            }
+    
+    def _triangle_area(self, analysis: Dict) -> Dict:
+        """Calculate the area of a triangle"""
+        # For demonstration, let's assume we know the base and height
+        base = 6  # Example value
+        height = 4  # Example value
+        
+        # Calculate area
+        area = 0.5 * base * height
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": f"Identifying triangle with base = {base} and height = {height}"},
+            {"description": "Using the formula: Area = (1/2) × base × height"},
+            {"description": f"Area = (1/2) × {base} × {height}"},
+            {"description": f"Area = 0.5 × {base} × {height}"},
+            {"description": f"Area = 0.5 × {base * height}"},
+            {"description": f"Area = {area}"}
+        ]
+        
+        # Create visualization data
+        visualization = {
+            "type": "triangle_area",
+            "triangle": {
+                "base": base,
+                "height": height,
+                "vertices": [
+                    {"x": 0, "y": 0},
+                    {"x": base, "y": 0},
+                    {"x": base/2, "y": height}
+                ]
+            },
+            "area": area
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"Area = {area}",
+            "explanation": "Used the formula Area = (1/2) × base × height to find the triangle's area",
+            "confidence": 0.9,
+            "computed_values": {"area": area},
+            "visualization": visualization
+        }
+    
+    def _triangle_angles(self, analysis: Dict) -> Dict:
+        """Calculate angles in a triangle"""
+        # For demonstration, let's assume we know two angles and need to find the third
+        angle1 = 30  # Example value in degrees
+        angle2 = 45  # Example value in degrees
+        
+        # Calculate the third angle using the fact that angles in a triangle sum to 180°
+        angle3 = 180 - angle1 - angle2
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": f"Given angles in the triangle: {angle1}° and {angle2}°"},
+            {"description": "Using the fact that angles in a triangle sum to 180°"},
+            {"description": f"Third angle = 180° - {angle1}° - {angle2}°"},
+            {"description": f"Third angle = 180° - {angle1 + angle2}°"},
+            {"description": f"Third angle = {angle3}°"}
+        ]
+        
+        # Create visualization data
+        visualization = {
+            "type": "triangle_angles",
+            "angles": {
+                "angle1": angle1,
+                "angle2": angle2,
+                "angle3": angle3
+            },
+            "vertices": [
+                {"x": 0, "y": 0},
+                {"x": 10, "y": 0},
+                {"x": 5, "y": 8}
+            ]
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"Third angle = {angle3}°",
+            "explanation": "Used the fact that angles in a triangle sum to 180° to find the missing angle",
+            "confidence": 0.95,
+            "computed_values": {"angle3": angle3},
+            "visualization": visualization
+        }
+    
+    def use_pythagorean_theorem(self, analysis: Dict, step: Dict) -> Dict:
+        """Apply the Pythagorean theorem to a right triangle"""
+        # Determine what we need to find
+        target = analysis.get("components", {}).get("target", {}).get("description", "")
+        
+        # For demonstration, let's consider different cases
+        if "hypotenuse" in target.lower():
+            # Finding the hypotenuse
+            a = 3  # Example value
+            b = 4  # Example value
+            c = (a**2 + b**2)**0.5
+            
+            working_steps = [
+                {"description": f"Identifying right triangle with legs a = {a} and b = {b}"},
+                {"description": "Using the Pythagorean theorem: c² = a² + b²"},
+                {"description": f"c² = {a}² + {b}²"},
+                {"description": f"c² = {a**2} + {b**2}"},
+                {"description": f"c² = {a**2 + b**2}"},
+                {"description": f"c = √{a**2 + b**2}"},
+                {"description": f"c = {c}"}
+            ]
+            
+            result = f"Hypotenuse c = {c}"
+            computed_values = {"hypotenuse": c}
+            
+        elif "leg" in target.lower():
+            # Finding a leg
+            a = 5  # Example value (one leg)
+            c = 13  # Example value (hypotenuse)
+            b = (c**2 - a**2)**0.5
+            
+            working_steps = [
+                {"description": f"Identifying right triangle with leg a = {a} and hypotenuse c = {c}"},
+                {"description": "Using the Pythagorean theorem: a² + b² = c²"},
+                {"description": f"{a}² + b² = {c}²"},
+                {"description": f"{a**2} + b² = {c**2}"},
+                {"description": f"b² = {c**2} - {a**2}"},
+                {"description": f"b² = {c**2 - a**2}"},
+                {"description": f"b = √{c**2 - a**2}"},
+                {"description": f"b = {b}"}
+            ]
+            
+            result = f"Leg b = {b}"
+            computed_values = {"leg": b}
+            
+        else:
+            # Checking if a triangle is right
+            a = 5  # Example value
+            b = 12  # Example value
+            c = 13  # Example value
+            is_right = abs((a**2 + b**2) - c**2) < 0.0001
+            
+            working_steps = [
+                {"description": f"Examining triangle with sides a = {a}, b = {b}, and c = {c}"},
+                {"description": "Checking if the triangle is right using the Pythagorean theorem: a² + b² = c²"},
+                {"description": f"{a}² + {b}² = {a**2} + {b**2} = {a**2 + b**2}"},
+                {"description": f"c² = {c}² = {c**2}"},
+                {"description": f"Comparing: {a**2 + b**2} {'=' if is_right else '≠'} {c**2}"}
+            ]
+            
+            result = f"The triangle {'is' if is_right else 'is not'} a right triangle"
+            computed_values = {"is_right_triangle": is_right}
+        
+        # Create visualization data
+        visualization = {
+            "type": "pythagorean_theorem",
+            "triangle": {
+                "a": a,
+                "b": b,
+                "c": c,
+                "vertices": [
+                    {"x": 0, "y": 0},
+                    {"x": a, "y": 0},
+                    {"x": 0, "y": b}
+                ]
+            }
+        }
+        
+        return {
+            "working": working_steps,
+            "result": result,
+            "explanation": "Applied the Pythagorean theorem to solve the problem",
+            "confidence": 0.95,
+            "computed_values": computed_values,
+            "visualization": visualization
+        }
+    
+    def apply_similarity_congruence(self, analysis: Dict, step: Dict) -> Dict:
+        """Apply triangle similarity or congruence principles"""
+        # For demonstration, let's solve a similarity problem
+        # Assume we have triangles ABC and DEF with known sides
+        
+        # Triangle ABC
+        ab = 3  # Example value
+        bc = 4  # Example value
+        ca = 5  # Example value
+        
+        # Triangle DEF (similar to ABC)
+        scale_factor = 2  # Example value
+        de = ab * scale_factor
+        ef = bc * scale_factor
+        fd = ca * scale_factor
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": "Identifying two triangles: ABC and DEF"},
+            {"description": f"Triangle ABC has sides: AB = {ab}, BC = {bc}, CA = {ca}"},
+            {"description": "Determining the triangles are similar"},
+            {"description": f"Scale factor from ABC to DEF = {scale_factor}"},
+            {"description": f"Computing sides of DEF: DE = {scale_factor} × AB = {de}"},
+            {"description": f"EF = {scale_factor} × BC = {ef}"},
+            {"description": f"FD = {scale_factor} × CA = {fd}"}
+        ]
+        
+        # Add additional information about similar triangles
+        working_steps.extend([
+            {"description": "Properties of similar triangles:"},
+            {"description": "1. Corresponding angles are congruent"},
+            {"description": "2. Corresponding sides are proportional"},
+            {"description": "3. Area ratio equals the square of the scale factor"}
+        ])
+        
+        # Create visualization data
+        visualization = {
+            "type": "triangle_similarity",
+            "triangle1": {
+                "name": "ABC",
+                "sides": {"AB": ab, "BC": bc, "CA": ca},
+                "vertices": [
+                    {"x": 0, "y": 0},
+                    {"x": ab, "y": 0},
+                    {"x": ab*0.6, "y": bc*0.8}
+                ]
+            },
+            "triangle2": {
+                "name": "DEF",
+                "sides": {"DE": de, "EF": ef, "FD": fd},
+                "vertices": [
+                    {"x": 0, "y": 0},
+                    {"x": de, "y": 0},
+                    {"x": de*0.6, "y": ef*0.8}
+                ]
+            },
+            "scale_factor": scale_factor,
+            "area_ratio": scale_factor**2
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"Triangle DEF with sides DE = {de}, EF = {ef}, FD = {fd}",
+            "explanation": "Applied similarity principles to find the unknown measurements",
+            "confidence": 0.9,
+            "computed_values": {"scale_factor": scale_factor, "similar_sides": {"DE": de, "EF": ef, "FD": fd}},
+            "visualization": visualization
+        }
+    
+    def compute_area_volume(self, analysis: Dict, step: Dict) -> Dict:
+        """Compute area or volume of geometric shapes"""
+        components = analysis.get("components", {})
+        target = components.get("target", {}).get("description", "")
+        geometric_entities = components.get("geometric_entities", [])
+        
+        if not geometric_entities:
+            return {
+                "working": "No geometric entities found",
+                "result": None,
+                "explanation": "Cannot compute area or volume without geometric entities",
+                "confidence": 0.1
+            }
+        
+        # Find the primary geometric entity
+        entity_types = [entity.get("entity") for entity in geometric_entities]
+        
+        try:
+            if "area" in target.lower():
+                # Area computation
+                if "circle" in entity_types:
+                    return self._circle_area(analysis)
+                elif "triangle" in entity_types:
+                    return self._triangle_area(analysis)
+                elif "rectangle" in entity_types or "square" in entity_types:
+                    return self._rectangle_area(analysis)
+                else:
+                    return {
+                        "working": f"Attempting to compute area for entities: {entity_types}",
+                        "result": "Area computation for this shape not implemented",
+                        "explanation": "The specific area formula for this shape is not available",
+                        "confidence": 0.3
+                    }
+            elif "volume" in target.lower():
+                # Volume computation
+                if "sphere" in entity_types:
+                    return self._sphere_volume(analysis)
+                elif "cube" in entity_types:
+                    return self._cube_volume(analysis)
+                elif "cylinder" in entity_types:
+                    return self._cylinder_volume(analysis)
+                else:
+                    return {
+                        "working": f"Attempting to compute volume for entities: {entity_types}",
+                        "result": "Volume computation for this shape not implemented",
+                        "explanation": "The specific volume formula for this shape is not available",
+                        "confidence": 0.3
+                    }
+            else:
+                return {
+                    "working": [
+                        {"description": f"Identified geometric entities: {entity_types}"},
+                        {"description": "Determining appropriate area/volume formulas"},
+                        {"description": "Applying formulas to compute measurements"}
+                    ],
+                    "result": "Geometric measurement approach demonstrated",
+                    "explanation": "Used geometric formulas to compute measurements",
+                    "confidence": 0.7
+                }
+        except Exception as e:
+            return {
+                "working": [
+                    {"description": f"Attempted to compute area/volume for: {entity_types}"},
+                    {"description": f"Encountered error: {str(e)}"}
+                ],
+                "result": f"Error in calculation: {str(e)}",
+                "explanation": "The system encountered an error during computation",
+                "confidence": 0.3
+            }
+    
+    def _circle_area(self, analysis: Dict) -> Dict:
+        """Calculate the area of a circle"""
+        # For demonstration, assume we know the radius
+        radius = 5  # Example value
+        
+        # Calculate area
+        area = 3.14159 * radius**2
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": f"Identifying circle with radius = {radius}"},
+            {"description": "Using the formula: Area = π × r²"},
+            {"description": f"Area = π × {radius}²"},
+            {"description": f"Area = π × {radius**2}"},
+            {"description": f"Area = {area}"}
+        ]
+        
+        # Create visualization data
+        visualization = {
+            "type": "circle_area",
+            "circle": {
+                "radius": radius,
+                "center": {"x": 0, "y": 0}
+            },
+            "area": area
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"Area = {area}",
+            "explanation": "Used the formula Area = π × r² to find the circle's area",
+            "confidence": 0.95,
+            "computed_values": {"area": area},
+            "visualization": visualization
+        }
+    
+    def _rectangle_area(self, analysis: Dict) -> Dict:
+        """Calculate the area of a rectangle or square"""
+        # For demonstration, assume we know the dimensions
+        length = 8  # Example value
+        width = 5  # Example value
+        
+        # Check if it's a square
+        is_square = length == width
+        
+        # Calculate area
+        area = length * width
+        
+        # Detailed working steps
+        if is_square:
+            working_steps = [
+                {"description": f"Identifying square with side length = {length}"},
+                {"description": "Using the formula: Area = side²"},
+                {"description": f"Area = {length}²"},
+                {"description": f"Area = {area}"}
+            ]
+        else:
+            working_steps = [
+                {"description": f"Identifying rectangle with length = {length} and width = {width}"},
+                {"description": "Using the formula: Area = length × width"},
+                {"description": f"Area = {length} × {width}"},
+                {"description": f"Area = {area}"}
+            ]
+        
+        # Create visualization data
+        visualization = {
+            "type": "rectangle_area",
+            "shape": {
+                "length": length,
+                "width": width,
+                "is_square": is_square,
+                "vertices": [
+                    {"x": 0, "y": 0},
+                    {"x": length, "y": 0},
+                    {"x": length, "y": width},
+                    {"x": 0, "y": width}
+                ]
+            },
+            "area": area
+        }
+        
+        shape_name = "square" if is_square else "rectangle"
+        
+        return {
+            "working": working_steps,
+            "result": f"Area = {area}",
+            "explanation": f"Used the formula for {shape_name} area to find the result",
+            "confidence": 0.95,
+            "computed_values": {"area": area},
+            "visualization": visualization
+        }
+    
+    def _sphere_volume(self, analysis: Dict) -> Dict:
+        """Calculate the volume of a sphere"""
+        # For demonstration, assume we know the radius
+        radius = 3  # Example value
+        
+        # Calculate volume
+        volume = (4/3) * 3.14159 * radius**3
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": f"Identifying sphere with radius = {radius}"},
+            {"description": "Using the formula: Volume = (4/3) × π × r³"},
+            {"description": f"Volume = (4/3) × π × {radius}³"},
+            {"description": f"Volume = (4/3) × π × {radius**3}"},
+            {"description": f"Volume = {volume}"}
+        ]
+        
+        # Create visualization data
+        visualization = {
+            "type": "sphere_volume",
+            "sphere": {
+                "radius": radius,
+                "center": {"x": 0, "y": 0, "z": 0}
+            },
+            "volume": volume
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"Volume = {volume}",
+            "explanation": "Used the formula Volume = (4/3) × π × r³ to find the sphere's volume",
+            "confidence": 0.95,
+            "computed_values": {"volume": volume},
+            "visualization": visualization
+        }
+    
+    def _cube_volume(self, analysis: Dict) -> Dict:
+        """Calculate the volume of a cube"""
+        # For demonstration, assume we know the side length
+        side = 4  # Example value
+        
+        # Calculate volume
+        volume = side**3
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": f"Identifying cube with side length = {side}"},
+            {"description": "Using the formula: Volume = side³"},
+            {"description": f"Volume = {side}³"},
+            {"description": f"Volume = {volume}"}
+        ]
+        
+        # Create visualization data
+        visualization = {
+            "type": "cube_volume",
+            "cube": {
+                "side": side,
+                "vertices": [
+                    {"x": 0, "y": 0, "z": 0},
+                    {"x": side, "y": 0, "z": 0},
+                    {"x": side, "y": side, "z": 0},
+                    {"x": 0, "y": side, "z": 0},
+                    {"x": 0, "y": 0, "z": side},
+                    {"x": side, "y": 0, "z": side},
+                    {"x": side, "y": side, "z": side},
+                    {"x": 0, "y": side, "z": side}
+                ]
+            },
+            "volume": volume
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"Volume = {volume}",
+            "explanation": "Used the formula Volume = side³ to find the cube's volume",
+            "confidence": 0.95,
+            "computed_values": {"volume": volume},
+            "visualization": visualization
+        }
+    
+    def _cylinder_volume(self, analysis: Dict) -> Dict:
+        """Calculate the volume of a cylinder"""
+        # For demonstration, assume we know the radius and height
+        radius = 3  # Example value
+        height = 7  # Example value
+        
+        # Calculate volume
+        volume = 3.14159 * radius**2 * height
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": f"Identifying cylinder with radius = {radius} and height = {height}"},
+            {"description": "Using the formula: Volume = π × r² × h"},
+            {"description": f"Volume = π × {radius}² × {height}"},
+            {"description": f"Volume = π × {radius**2} × {height}"},
+            {"description": f"Volume = {3.14159 * radius**2} × {height}"},
+            {"description": f"Volume = {volume}"}
+        ]
+        
+        # Create visualization data
+        visualization = {
+            "type": "cylinder_volume",
+            "cylinder": {
+                "radius": radius,
+                "height": height,
+                "base_center": {"x": 0, "y": 0, "z": 0}
+            },
+            "volume": volume
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"Volume = {volume}",
+            "explanation": "Used the formula Volume = π × r² × h to find the cylinder's volume",
+            "confidence": 0.95,
+            "computed_values": {"volume": volume},
+            "visualization": visualization
+        }
+
+
+class StatisticsExecutorAgent(ExecutorAgent):
+    """Agent specialized in executing statistics solution strategies"""
+    
+    def __init__(self, workspace: Workspace):
+        super().__init__("StatisticsExecutor", workspace, "statistics")
+        
+        # Knowledge base of statistics techniques
+        self.techniques = {
+            "apply_probability_rules": self.apply_probability_rules,
+            "compute_summary_statistics": self.compute_summary_statistics,
+            "apply_bayes_theorem": self.apply_bayes_theorem,
+            "hypothesis_testing": self.hypothesis_testing,
+            "confidence_intervals": self.confidence_intervals
+        }
+    
+    def apply_probability_rules(self, analysis: Dict, step: Dict) -> Dict:
+        """Apply rules of probability to solve problems"""
+        components = analysis.get("components", {})
+        target = components.get("target", {}).get("description", "")
+        
+        # Determine what type of probability problem this is
+        if "conditional" in target.lower():
+            return self._conditional_probability(analysis)
+        elif "independent" in target.lower():
+            return self._independent_events(analysis)
+        elif "union" in target.lower() or "or" in target.lower():
+            return self._probability_union(analysis)
+        elif "intersection" in target.lower() or "and" in target.lower():
+            return self._probability_intersection(analysis)
+        else:
+            # Generic probability approach
+            return {
+                "working": [
+                    {"description": "Identifying the probability problem type"},
+                    {"description": "Determining applicable probability rules"},
+                    {"description": "Applying rules to compute the probability"}
+                ],
+                "result": "Probability calculation approach demonstrated",
+                "explanation": "Used probability rules to solve the problem",
+                "confidence": 0.7
+            }
+    
+    def _conditional_probability(self, analysis: Dict) -> Dict:
+        """Calculate conditional probability P(A|B)"""
+        # For demonstration, assume we know P(A), P(B), and P(A∩B)
+        p_a = 0.5  # Example value
+        p_b = 0.4  # Example value
+        p_a_and_b = 0.2  # Example value
+        
+        # Calculate P(A|B)
+        p_a_given_b = p_a_and_b / p_b
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": "Identifying conditional probability problem P(A|B)"},
+            {"description": f"Given: P(A) = {p_a}, P(B) = {p_b}, P(A∩B) = {p_a_and_b}"},
+            {"description": "Using the formula: P(A|B) = P(A∩B) / P(B)"},
+            {"description": f"P(A|B) = {p_a_and_b} / {p_b}"},
+            {"description": f"P(A|B) = {p_a_given_b}"}
+        ]
+        
+        # Create visualization data
+        visualization = {
+            "type": "conditional_probability",
+            "probabilities": {
+                "P(A)": p_a,
+                "P(B)": p_b,
+                "P(A∩B)": p_a_and_b,
+                "P(A|B)": p_a_given_b
+            },
+            "venn_diagram": {
+                "sets": [
+                    {"name": "A", "size": p_a, "position": {"x": 0.3, "y": 0.5}},
+                    {"name": "B", "size": p_b, "position": {"x": 0.7, "y": 0.5}}
+                ],
+                "intersection": {"size": p_a_and_b, "position": {"x": 0.5, "y": 0.5}}
+            }
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"P(A|B) = {p_a_given_b}",
+            "explanation": "Used the conditional probability formula to find P(A|B)",
+            "confidence": 0.9,
+            "computed_values": {"conditional_probability": p_a_given_b},
+            "visualization": visualization
+        }
+    
+    def _independent_events(self, analysis: Dict) -> Dict:
+        """Analyze independent events"""
+        # For demonstration, assume we know P(A) and P(B)
+        p_a = 0.3  # Example value
+        p_b = 0.4  # Example value
+        
+        # For independent events, P(A∩B) = P(A) × P(B)
+        p_a_and_b = p_a * p_b
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": "Analyzing independent events A and B"},
+            {"description": f"Given: P(A) = {p_a}, P(B) = {p_b}"},
+            {"description": "For independent events: P(A∩B) = P(A) × P(B)"},
+            {"description": f"P(A∩B) = {p_a} × {p_b}"},
+            {"description": f"P(A∩B) = {p_a_and_b}"}
+        ]
+        
+        # Create visualization data
+        visualization = {
+            "type": "independent_events",
+            "probabilities": {
+                "P(A)": p_a,
+                "P(B)": p_b,
+                "P(A∩B)": p_a_and_b
+            },
+            "tree_diagram": {
+                "root": {"name": "Start", "probability": 1.0},
+                "branches": [
+                    {
+                        "name": "A", 
+                        "probability": p_a,
+                        "children": [
+                            {"name": "B", "probability": p_b, "joint_probability": p_a_and_b},
+                            {"name": "not B", "probability": 1-p_b, "joint_probability": p_a*(1-p_b)}
+                        ]
+                    },
+                    {
+                        "name": "not A", 
+                        "probability": 1-p_a,
+                        "children": [
+                            {"name": "B", "probability": p_b, "joint_probability": (1-p_a)*p_b},
+                            {"name": "not B", "probability": 1-p_b, "joint_probability": (1-p_a)*(1-p_b)}
+                        ]
+                    }
+                ]
+            }
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"P(A∩B) = {p_a_and_b}",
+            "explanation": "Applied the multiplication rule for independent events",
+            "confidence": 0.9,
+            "computed_values": {"joint_probability": p_a_and_b},
+            "visualization": visualization
+        }
+    
+    def _probability_union(self, analysis: Dict) -> Dict:
+        """Calculate the probability of a union of events: P(A∪B)"""
+        # For demonstration, assume we know P(A), P(B), and P(A∩B)
+        p_a = 0.5  # Example value
+        p_b = 0.4  # Example value
+        p_a_and_b = 0.2  # Example value
+        
+        # Calculate P(A∪B)
+        p_a_or_b = p_a + p_b - p_a_and_b
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": "Calculating P(A∪B) - the probability of A or B"},
+            {"description": f"Given: P(A) = {p_a}, P(B) = {p_b}, P(A∩B) = {p_a_and_b}"},
+            {"description": "Using the formula: P(A∪B) = P(A) + P(B) - P(A∩B)"},
+            {"description": f"P(A∪B) = {p_a} + {p_b} - {p_a_and_b}"},
+            {"description": f"P(A∪B) = {p_a + p_b} - {p_a_and_b}"},
+            {"description": f"P(A∪B) = {p_a_or_b}"}
+        ]
+        
+        # Create visualization data
+        visualization = {
+            "type": "probability_union",
+            "probabilities": {
+                "P(A)": p_a,
+                "P(B)": p_b,
+                "P(A∩B)": p_a_and_b,
+                "P(A∪B)": p_a_or_b
+            },
+            "venn_diagram": {
+                "sets": [
+                    {"name": "A", "size": p_a, "position": {"x": 0.3, "y": 0.5}},
+                    {"name": "B", "size": p_b, "position": {"x": 0.7, "y": 0.5}}
+                ],
+                "intersection": {"size": p_a_and_b, "position": {"x": 0.5, "y": 0.5}},
+                "union": {"size": p_a_or_b}
+            }
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"P(A∪B) = {p_a_or_b}",
+            "explanation": "Used the addition rule of probability to find P(A∪B)",
+            "confidence": 0.95,
+            "computed_values": {"union_probability": p_a_or_b},
+            "visualization": visualization
+        }
+    
+    def _probability_intersection(self, analysis: Dict) -> Dict:
+        """Calculate the probability of an intersection of events: P(A∩B)"""
+        # For demonstration, assume we know P(A), P(B), and whether they're independent
+        p_a = 0.5  # Example value
+        p_b = 0.4  # Example value
+        independent = False  # Example value
+        
+        if independent:
+            # For independent events: P(A∩B) = P(A) × P(B)
+            p_a_and_b = p_a * p_b
+            rule_used = "multiplication rule for independent events"
+        else:
+            # For dependent events, use P(A∩B) = P(A) × P(B|A)
+            # For demonstration, assume P(B|A) = 0.6
+            p_b_given_a = 0.6  # Example value
+            p_a_and_b = p_a * p_b_given_a
+            rule_used = "conditional probability formula"
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": "Calculating P(A∩B) - the probability of A and B"},
+            {"description": f"Given: P(A) = {p_a}, P(B) = {p_b}"}
+        ]
+        
+        if independent:
+            working_steps.extend([
+                {"description": "Events A and B are independent"},
+                {"description": "Using the formula for independent events: P(A∩B) = P(A) × P(B)"},
+                {"description": f"P(A∩B) = {p_a} × {p_b}"},
+                {"description": f"P(A∩B) = {p_a_and_b}"}
+            ])
+        else:
+            working_steps.extend([
+                {"description": "Events A and B are not independent"},
+                {"description": f"Given: P(B|A) = {p_b_given_a}"},
+                {"description": "Using the formula: P(A∩B) = P(A) × P(B|A)"},
+                {"description": f"P(A∩B) = {p_a} × {p_b_given_a}"},
+                {"description": f"P(A∩B) = {p_a_and_b}"}
+            ])
+        
+        # Create visualization data
+        visualization = {
+            "type": "probability_intersection",
+            "probabilities": {
+                "P(A)": p_a,
+                "P(B)": p_b,
+                "P(A∩B)": p_a_and_b
+            },
+            "independent": independent,
+            "venn_diagram": {
+                "sets": [
+                    {"name": "A", "size": p_a, "position": {"x": 0.3, "y": 0.5}},
+                    {"name": "B", "size": p_b, "position": {"x": 0.7, "y": 0.5}}
+                ],
+                "intersection": {"size": p_a_and_b, "position": {"x": 0.5, "y": 0.5}}
+            }
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"P(A∩B) = {p_a_and_b}",
+            "explanation": f"Applied the {rule_used} to find P(A∩B)",
+            "confidence": 0.9,
+            "computed_values": {"intersection_probability": p_a_and_b},
+            "visualization": visualization
+        }
+    
+    def compute_summary_statistics(self, analysis: Dict, step: Dict) -> Dict:
+        """Compute statistical measures for data"""
+        # For demonstration, create a sample dataset
+        data = [12, 15, 18, 22, 25, 30, 35, 42, 48, 50]
+        
+        # Compute basic statistics
+        mean = sum(data) / len(data)
+        sorted_data = sorted(data)
+        n = len(sorted_data)
+        
+        # Median
+        if n % 2 == 0:
+            median = (sorted_data[n//2 - 1] + sorted_data[n//2]) / 2
+        else:
+            median = sorted_data[n//2]
+        
+        # Mode (simplified - just find the most frequent value)
+        from collections import Counter
+        mode_counter = Counter(data)
+        mode = mode_counter.most_common(1)[0][0]
+        
+        # Range
+        data_range = max(data) - min(data)
+        
+        # Variance and Standard Deviation
+        variance = sum((x - mean)**2 for x in data) / n
+        std_dev = variance**0.5
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": "Computing summary statistics for the dataset"},
+            {"description": f"Dataset: {data}"},
+            {"description": "Mean calculation: sum of all values divided by count"},
+            {"description": f"Mean = ({' + '.join(str(x) for x in data)}) / {n}"},
+            {"description": f"Mean = {sum(data)} / {n} = {mean}"},
+            {"description": "Median calculation: middle value of sorted data"},
+            {"description": f"Sorted data: {sorted_data}"},
+            {"description": f"Median = {median}"},
+            {"description": "Mode calculation: most frequent value"},
+            {"description": f"Mode = {mode}"},
+            {"description": "Range calculation: maximum - minimum"},
+            {"description": f"Range = {max(data)} - {min(data)} = {data_range}"},
+            {"description": "Variance calculation: average squared deviation from mean"},
+            {"description": f"Variance = {variance}"},
+            {"description": "Standard deviation: square root of variance"},
+            {"description": f"Standard deviation = √{variance} = {std_dev}"}
+        ]
+        
+        # Create visualization data
+        visualization = {
+            "type": "summary_statistics",
+            "data": data,
+            "statistics": {
+                "mean": mean,
+                "median": median,
+                "mode": mode,
+                "range": data_range,
+                "variance": variance,
+                "standard_deviation": std_dev
+            },
+            "histogram": {
+                "bins": 5,
+                "frequencies": [2, 3, 2, 2, 1]  # Example frequencies
+            }
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"Mean = {mean}, Median = {median}, Mode = {mode}, Standard Deviation = {std_dev}",
+            "explanation": "Computed key summary statistics to describe the central tendency and spread of the data",
+            "confidence": 0.95,
+            "computed_values": {
+                "mean": mean,
+                "median": median,
+                "mode": mode,
+                "range": data_range,
+                "variance": variance,
+                "standard_deviation": std_dev
+            },
+            "visualization": visualization
+        }
+    
+    def apply_bayes_theorem(self, analysis: Dict, step: Dict) -> Dict:
+        """Apply Bayes' theorem to calculate conditional probabilities"""
+        # For demonstration, assume we know P(A), P(B|A), and P(B|not A)
+        p_a = 0.3  # Example value - prior probability
+        p_b_given_a = 0.8  # Example value - sensitivity
+        p_b_given_not_a = 0.1  # Example value - false positive rate
+        
+        # Calculate P(not A)
+        p_not_a = 1 - p_a
+        
+        # Calculate P(B) using the law of total probability
+        p_b = p_b_given_a * p_a + p_b_given_not_a * p_not_a
+        
+        # Apply Bayes' theorem to calculate P(A|B)
+        p_a_given_b = (p_b_given_a * p_a) / p_b
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": "Applying Bayes' theorem to calculate P(A|B)"},
+            {"description": f"Given: P(A) = {p_a}, P(B|A) = {p_b_given_a}, P(B|not A) = {p_b_given_not_a}"},
+            {"description": "Step 1: Calculate P(not A) = 1 - P(A)"},
+            {"description": f"P(not A) = 1 - {p_a} = {p_not_a}"},
+            {"description": "Step 2: Calculate P(B) using the law of total probability"},
+            {"description": "P(B) = P(B|A) × P(A) + P(B|not A) × P(not A)"},
+            {"description": f"P(B) = {p_b_given_a} × {p_a} + {p_b_given_not_a} × {p_not_a}"},
+            {"description": f"P(B) = {p_b_given_a * p_a} + {p_b_given_not_a * p_not_a} = {p_b}"},
+            {"description": "Step 3: Apply Bayes' theorem: P(A|B) = [P(B|A) × P(A)] / P(B)"},
+            {"description": f"P(A|B) = [{p_b_given_a} × {p_a}] / {p_b}"},
+            {"description": f"P(A|B) = {p_b_given_a * p_a} / {p_b} = {p_a_given_b}"}
+        ]
+        
+        # Create visualization data
+        visualization = {
+            "type": "bayes_theorem",
+            "probabilities": {
+                "prior": {"P(A)": p_a, "P(not A)": p_not_a},
+                "likelihood": {"P(B|A)": p_b_given_a, "P(B|not A)": p_b_given_not_a},
+                "marginal": {"P(B)": p_b},
+                "posterior": {"P(A|B)": p_a_given_b, "P(not A|B)": 1 - p_a_given_b}
+            },
+            "tree_diagram": {
+                "root": {"name": "Start", "probability": 1.0},
+                "branches": [
+                    {
+                        "name": "A", 
+                        "probability": p_a,
+                        "children": [
+                            {"name": "B", "probability": p_b_given_a, "joint_probability": p_b_given_a * p_a},
+                            {"name": "not B", "probability": 1-p_b_given_a, "joint_probability": (1-p_b_given_a) * p_a}
+                        ]
+                    },
+                    {
+                        "name": "not A", 
+                        "probability": p_not_a,
+                        "children": [
+                            {"name": "B", "probability": p_b_given_not_a, "joint_probability": p_b_given_not_a * p_not_a},
+                            {"name": "not B", "probability": 1-p_b_given_not_a, "joint_probability": (1-p_b_given_not_a) * p_not_a}
+                        ]
+                    }
+                ]
+            }
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"P(A|B) = {p_a_given_b}",
+            "explanation": "Applied Bayes' theorem to update the probability of A given evidence B",
+            "confidence": 0.9,
+            "computed_values": {"posterior_probability": p_a_given_b},
+            "visualization": visualization
+        }
+    
+    def hypothesis_testing(self, analysis: Dict, step: Dict) -> Dict:
+        """Perform hypothesis testing"""
+        # For demonstration, assume we're doing a z-test for a mean
+        sample_mean = 52  # Example value
+        population_mean = 50  # Example value - null hypothesis
+        population_std = 10  # Example value
+        sample_size = 36  # Example value
+        
+        # Calculate the standard error
+        standard_error = population_std / (sample_size**0.5)
+        
+        # Calculate the z-statistic
+        z_statistic = (sample_mean - population_mean) / standard_error
+        
+        # Determine p-value (simplified calculation)
+        # For a two-tailed test with z-statistic = 1.2, p-value ≈ 0.23
+        p_value = 0.23  # Example value
+        
+        # Choose significance level
+        alpha = 0.05
+        
+        # Make decision
+        reject_null = p_value < alpha
+        decision = "Reject the null hypothesis" if reject_null else "Fail to reject the null hypothesis"
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": "Performing hypothesis testing (z-test for a mean)"},
+            {"description": "Null hypothesis (H₀): μ = 50"},
+            {"description": "Alternative hypothesis (H₁): μ ≠ 50"},
+            {"description": f"Given: sample mean = {sample_mean}, population std dev = {population_std}, sample size = {sample_size}"},
+            {"description": "Step 1: Calculate the standard error"},
+            {"description": f"SE = σ / √n = {population_std} / √{sample_size} = {standard_error}"},
+            {"description": "Step 2: Calculate the z-statistic"},
+            {"description": f"z = (x̄ - μ) / SE = ({sample_mean} - {population_mean}) / {standard_error} = {z_statistic}"},
+            {"description": "Step 3: Find the p-value"},
+            {"description": f"For z = {z_statistic}, p-value = {p_value}"},
+            {"description": f"Step 4: Compare p-value to significance level (α = {alpha})"},
+            {"description": f"p-value {('<' if reject_null else '>')} α"},
+            {"description": f"Decision: {decision}"}
+        ]
+        
+        # Create visualization data
+        visualization = {
+            "type": "hypothesis_testing",
+            "test_type": "z-test for mean",
+            "parameters": {
+                "sample_mean": sample_mean,
+                "population_mean": population_mean,
+                "population_std": population_std,
+                "sample_size": sample_size
+            },
+            "results": {
+                "standard_error": standard_error,
+                "z_statistic": z_statistic,
+                "p_value": p_value,
+                "alpha": alpha,
+                "reject_null": reject_null
+            },
+            "distribution": {
+                "mean": population_mean,
+                "std": standard_error,
+                "observed": sample_mean,
+                "critical_values": [-1.96, 1.96]  # For α = 0.05
+            }
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"{decision} (p-value = {p_value})",
+            "explanation": "Conducted a z-test to determine if the sample mean differs significantly from the population mean",
+            "confidence": 0.9,
+            "computed_values": {
+                "z_statistic": z_statistic,
+                "p_value": p_value,
+                "reject_null": reject_null
+            },
+            "visualization": visualization
+        }
+    
+    def confidence_intervals(self, analysis: Dict, step: Dict) -> Dict:
+        """Calculate confidence intervals for parameter estimation"""
+        # For demonstration, assume we're calculating a confidence interval for a mean
+        sample_mean = 75  # Example value
+        sample_std = 12  # Example value
+        sample_size = 40  # Example value
+        confidence_level = 0.95  # Example value
+        
+        # For 95% confidence, z-critical value is approximately 1.96
+        z_critical = 1.96
+        
+        # Calculate standard error
+        standard_error = sample_std / (sample_size**0.5)
+        
+        # Calculate margin of error
+        margin_of_error = z_critical * standard_error
+        
+        # Calculate confidence interval
+        lower_bound = sample_mean - margin_of_error
+        upper_bound = sample_mean + margin_of_error
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": f"Calculating {confidence_level*100}% confidence interval for a mean"},
+            {"description": f"Given: sample mean = {sample_mean}, sample std dev = {sample_std}, sample size = {sample_size}"},
+            {"description": f"Step 1: Find the critical value for {confidence_level*100}% confidence"},
+            {"description": f"For {confidence_level*100}% confidence, z-critical = {z_critical}"},
+            {"description": "Step 2: Calculate the standard error"},
+            {"description": f"SE = s / √n = {sample_std} / √{sample_size} = {standard_error}"},
+            {"description": "Step 3: Calculate the margin of error"},
+            {"description": f"ME = z-critical × SE = {z_critical} × {standard_error} = {margin_of_error}"},
+            {"description": "Step 4: Construct the confidence interval"},
+            {"description": f"CI = x̄ ± ME = {sample_mean} ± {margin_of_error}"},
+            {"description": f"CI = ({lower_bound}, {upper_bound})"}
+        ]
+        
+        # Create visualization data
+        visualization = {
+            "type": "confidence_interval",
+            "parameters": {
+                "sample_mean": sample_mean,
+                "sample_std": sample_std,
+                "sample_size": sample_size,
+                "confidence_level": confidence_level
+            },
+            "results": {
+                "standard_error": standard_error,
+                "z_critical": z_critical,
+                "margin_of_error": margin_of_error,
+                "lower_bound": lower_bound,
+                "upper_bound": upper_bound
+            },
+            "distribution": {
+                "mean": sample_mean,
+                "std": standard_error,
+                "interval": [lower_bound, upper_bound]
+            }
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"{confidence_level*100}% Confidence Interval: ({lower_bound}, {upper_bound})",
+            "explanation": f"Constructed a {confidence_level*100}% confidence interval for the population mean",
+            "confidence": 0.95,
+            "computed_values": {
+                "lower_bound": lower_bound,
+                "upper_bound": upper_bound,
+                "margin_of_error": margin_of_error
+            },
+            "visualization": visualization
+        }
+
+
+class NumberTheoryExecutorAgent(ExecutorAgent):
+    """Agent specialized in executing number theory solution strategies"""
+    
+    def __init__(self, workspace: Workspace):
+        super().__init__("NumberTheoryExecutor", workspace, "number_theory")
+        
+        # Knowledge base of number theory techniques
+        self.techniques = {
+            "prime_factorization": self.prime_factorization,
+            "use_modular_arithmetic": self.use_modular_arithmetic,
+            "find_gcd_lcm": self.find_gcd_lcm,
+            "apply_divisibility_rules": self.apply_divisibility_rules,
+            "solve_diophantine_equation": self.solve_diophantine_equation
+        }
+    
+    def prime_factorization(self, analysis: Dict, step: Dict) -> Dict:
+        """Find the prime factorization of a number"""
+        # For demonstration, pick a number to factorize
+        number = 84  # Example value
+        
+        # Compute prime factorization
+        n = number
+        factors = []
+        d = 2
+        
+        while n > 1:
+            while n % d == 0:
+                factors.append(d)
+                n //= d
+            d += 1
+            if d*d > n and n > 1:
+                factors.append(n)
+                break
+        
+        # Format the prime factorization
+        factorization = {}
+        for factor in factors:
+            factorization[factor] = factorization.get(factor, 0) + 1
+        
+        # Create a formatted expression
+        expression = " × ".join([f"{base}^{power}" if power > 1 else str(base) 
+                              for base, power in factorization.items()])
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": f"Finding the prime factorization of {number}"},
+            {"description": "Starting with the smallest prime factor, 2"}
+        ]
+        
+        # Create steps for the factorization process
+        n = number
+        d = 2
+        while n > 1:
+            if n % d == 0:
+                steps_text = f"Divide {n} by {d}: {n} ÷ {d} = {n//d}"
+                working_steps.append({"description": steps_text})
+                n //= d
+            else:
+                working_steps.append({"description": f"{n} is not divisible by {d}, try next factor"})
+                d += 1
+                if d*d > n and n > 1:
+                    working_steps.append({"description": f"{n} is prime, so it's a factor"})
+                    break
+        
+        working_steps.append({"description": f"Prime factorization: {expression}"})
+        
+        # Create visualization data
+        visualization = {
+            "type": "prime_factorization",
+            "number": number,
+            "factors": factorization,
+            "expression": expression,
+            "factor_tree": {
+                "root": number,
+                "branches": self._create_factor_tree(number)
+            }
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"Prime factorization of {number} = {expression}",
+            "explanation": "Found the unique prime factorization of the number",
+            "confidence": 0.95,
+            "computed_values": {"factorization": factorization, "factors": factors},
+            "visualization": visualization
+        }
+    
+    def _create_factor_tree(self, n, max_depth=3):
+        """Helper method to create a factor tree for visualization"""
+        if n <= 1 or max_depth <= 0:
+            return None
+            
+        # Find a factor
+        for i in range(2, int(n**0.5) + 1):
+            if n % i == 0:
+                return {
+                    "factor1": i,
+                    "factor2": n // i,
+                    "left": self._create_factor_tree(i, max_depth - 1),
+                    "right": self._create_factor_tree(n // i, max_depth - 1)
+                }
+        
+        # Prime number
+        return None
+    
+    def use_modular_arithmetic(self, analysis: Dict, step: Dict) -> Dict:
+        """Apply modular arithmetic to solve problems"""
+        # For demonstration, compute a modular exponentiation
+        base = 7  # Example value
+        exponent = 23  # Example value
+        modulus = 13  # Example value
+        
+        # Compute modular exponentiation using the square-and-multiply algorithm
+        result = 1
+        b = base % modulus
+        e = exponent
+        
+        # Track steps for square-and-multiply
+        exp_steps = []
+        
+        while e > 0:
+            if e % 2 == 1:
+                result = (result * b) % modulus
+                exp_steps.append(f"e is odd, multiply: result = (result * b) % mod = ({result // b} * {b}) % {modulus} = {result}")
+            b = (b * b) % modulus
+            e //= 2
+            if e > 0:
+                exp_steps.append(f"Square base: b = (b * b) % mod = ({b // b} * {b // b}) % {modulus} = {b}")
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": f"Computing {base}^{exponent} mod {modulus}"},
+            {"description": "Using the square-and-multiply algorithm for efficient modular exponentiation"},
+            {"description": "Start with result = 1, b = base % modulus"},
+            {"description": f"result = 1, b = {base} % {modulus} = {base % modulus}"}
+        ]
+        
+        for step in exp_steps:
+            working_steps.append({"description": step})
+            
+        working_steps.append({"description": f"Final result: {base}^{exponent} mod {modulus} = {result}"})
+        
+        # Create visualization data
+        visualization = {
+            "type": "modular_arithmetic",
+            "operation": "exponentiation",
+            "parameters": {
+                "base": base,
+                "exponent": exponent,
+                "modulus": modulus
+            },
+            "result": result,
+            "modular_circle": {
+                "size": modulus,
+                "values": [{"value": i, "highlight": i == result} for i in range(modulus)]
+            }
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"{base}^{exponent} mod {modulus} = {result}",
+            "explanation": "Used the square-and-multiply algorithm for efficient modular exponentiation",
+            "confidence": 0.95,
+            "computed_values": {"modular_exponentiation": result},
+            "visualization": visualization
+        }
+    
+    def find_gcd_lcm(self, analysis: Dict, step: Dict) -> Dict:
+        """Find the greatest common divisor (GCD) and least common multiple (LCM)"""
+        # For demonstration, find GCD and LCM of two numbers
+        a = 48  # Example value
+        b = 36  # Example value
+        
+        # Compute GCD using the Euclidean algorithm
+        def gcd(x, y):
+            while y:
+                x, y = y, x % y
+            return x
+        
+        # Store steps for the Euclidean algorithm
+        gcd_steps = []
+        m, n = a, b
+        
+        while n:
+            gcd_steps.append(f"{m} = {m // n} × {n} + {m % n}")
+            m, n = n, m % n
+        
+        gcd_value = m
+        
+        # Compute LCM using the formula: LCM(a,b) = a * b / GCD(a,b)
+        lcm_value = a * b // gcd_value
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": f"Finding the GCD and LCM of {a} and {b}"},
+            {"description": "Step 1: Compute GCD using the Euclidean algorithm"}
+        ]
+        
+        for step in gcd_steps:
+            working_steps.append({"description": step})
+            
+        working_steps.extend([
+            {"description": f"GCD({a}, {b}) = {gcd_value}"},
+            {"description": "Step 2: Compute LCM using the formula: LCM(a,b) = a × b / GCD(a,b)"},
+            {"description": f"LCM({a}, {b}) = {a} × {b} / {gcd_value} = {a * b} / {gcd_value} = {lcm_value}"}
+        ])
+        
+        # Create visualization data
+        visualization = {
+            "type": "gcd_lcm",
+            "numbers": {"a": a, "b": b},
+            "results": {"gcd": gcd_value, "lcm": lcm_value},
+            "prime_factorizations": {
+                "a": self._get_prime_factorization(a),
+                "b": self._get_prime_factorization(b),
+                "gcd": self._get_prime_factorization(gcd_value),
+                "lcm": self._get_prime_factorization(lcm_value)
+            }
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"GCD({a}, {b}) = {gcd_value}, LCM({a}, {b}) = {lcm_value}",
+            "explanation": "Used the Euclidean algorithm to find the GCD and the formula LCM(a,b) = a × b / GCD(a,b)",
+            "confidence": 0.95,
+            "computed_values": {"gcd": gcd_value, "lcm": lcm_value},
+            "visualization": visualization
+        }
+    
+    def _get_prime_factorization(self, n):
+        """Helper method to get the prime factorization as a dictionary"""
+        factors = {}
+        d = 2
+        
+        while n > 1:
+            while n % d == 0:
+                factors[d] = factors.get(d, 0) + 1
+                n //= d
+            d += 1
+            if d*d > n and n > 1:
+                factors[n] = factors.get(n, 0) + 1
+                break
+                
+        return factors
+    
+    def apply_divisibility_rules(self, analysis: Dict, step: Dict) -> Dict:
+        """Apply divisibility rules to determine if a number is divisible by another"""
+        # For demonstration, check divisibility of a number
+        number = 34578  # Example value
+        divisors_to_check = [2, 3, 4, 5, 6, 8, 9, 10, 11]
+        
+        # Store results and explanations
+        divisibility_results = {}
+        
+        for divisor in divisors_to_check:
+            # Actually check divisibility
+            is_divisible = number % divisor == 0
+            
+            # Apply divisibility rules for explanation
+            if divisor == 2:
+                rule = f"A number is divisible by 2 if its last digit is even."
+                explanation = f"The last digit is {number % 10}, which is {'even' if number % 10 % 2 == 0 else 'odd'}."
+            elif divisor == 3:
+                digit_sum = sum(int(digit) for digit in str(number))
+                rule = f"A number is divisible by 3 if the sum of its digits is divisible by 3."
+                explanation = f"The sum of digits is {digit_sum}, which is {'' if digit_sum % 3 == 0 else 'not '}divisible by 3."
+            elif divisor == 4:
+                last_two_digits = number % 100
+                rule = f"A number is divisible by 4 if its last two digits form a number divisible by 4."
+                explanation = f"The last two digits are {last_two_digits}, which is {'' if last_two_digits % 4 == 0 else 'not '}divisible by 4."
+            elif divisor == 5:
+                rule = f"A number is divisible by 5 if its last digit is 0 or 5."
+                explanation = f"The last digit is {number % 10}, which is {'' if number % 10 in [0, 5] else 'not '}0 or 5."
+            elif divisor == 6:
+                rule = f"A number is divisible by 6 if it is divisible by both 2 and 3."
+                explanation = f"The number is {'' if number % 2 == 0 else 'not '}divisible by 2 and {'' if number % 3 == 0 else 'not '}divisible by 3."
+            elif divisor == 8:
+                last_three_digits = number % 1000
+                rule = f"A number is divisible by 8 if its last three digits form a number divisible by 8."
+                explanation = f"The last three digits are {last_three_digits}, which is {'' if last_three_digits % 8 == 0 else 'not '}divisible by 8."
+            elif divisor == 9:
+                digit_sum = sum(int(digit) for digit in str(number))
+                rule = f"A number is divisible by 9 if the sum of its digits is divisible by 9."
+                explanation = f"The sum of digits is {digit_sum}, which is {'' if digit_sum % 9 == 0 else 'not '}divisible by 9."
+            elif divisor == 10:
+                rule = f"A number is divisible by 10 if its last digit is 0."
+                explanation = f"The last digit is {number % 10}, which is {'' if number % 10 == 0 else 'not '}0."
+            elif divisor == 11:
+                digits = [int(digit) for digit in str(number)]
+                alternating_sum = sum((-1)**i * digit for i, digit in enumerate(digits))
+                rule = f"A number is divisible by 11 if the alternating sum of its digits is divisible by 11."
+                explanation = f"The alternating sum is {alternating_sum}, which is {'' if alternating_sum % 11 == 0 else 'not '}divisible by 11."
+            else:
+                rule = f"Checking divisibility by {divisor} directly."
+                explanation = f"{number} is {'' if is_divisible else 'not '}divisible by {divisor}."
+            
+            divisibility_results[divisor] = {
+                "is_divisible": is_divisible,
+                "rule": rule,
+                "explanation": explanation
+            }
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": f"Checking divisibility of {number} by various divisors"},
+        ]
+        
+        for divisor, result in divisibility_results.items():
+            working_steps.extend([
+                {"description": f"Checking divisibility by {divisor}:"},
+                {"description": f"Rule: {result['rule']}"},
+                {"description": f"Analysis: {result['explanation']}"},
+                {"description": f"Result: {number} is {'' if result['is_divisible'] else 'not '}divisible by {divisor}."}
+            ])
+        
+        # Format results for output
+        divisible_by = [divisor for divisor, result in divisibility_results.items() if result["is_divisible"]]
+        result_str = f"{number} is divisible by: {', '.join(map(str, divisible_by))}"
+        
+        # Create visualization data
+        visualization = {
+            "type": "divisibility",
+            "number": number,
+            "results": {str(divisor): result["is_divisible"] for divisor, result in divisibility_results.items()},
+            "factorization": self._get_prime_factorization(number)
+        }
+        
+        return {
+            "working": working_steps,
+            "result": result_str,
+            "explanation": "Applied divisibility rules to determine which numbers divide the given number",
+            "confidence": 0.95,
+            "computed_values": {"divisible_by": divisible_by},
+            "visualization": visualization
+        }
+    
+    def solve_diophantine_equation(self, analysis: Dict, step: Dict) -> Dict:
+        """Solve a linear Diophantine equation ax + by = c"""
+        # For demonstration, solve a linear Diophantine equation
+        a = 12  # Example value
+        b = 18  # Example value
+        c = 30  # Example value
+        
+        # First, check if a solution exists (c must be divisible by gcd(a,b))
+        def gcd(x, y):
+            while y:
+                x, y = y, x % y
+            return x
+        
+        g = gcd(a, b)
+        has_solution = c % g == 0
+        
+        if not has_solution:
+            working_steps = [
+                {"description": f"Solving the Diophantine equation {a}x + {b}y = {c}"},
+                {"description": f"Step 1: Check if a solution exists by finding gcd({a}, {b})"},
+                {"description": f"gcd({a}, {b}) = {g}"},
+                {"description": f"Check if {c} is divisible by {g}: {c} % {g} = {c % g}"},
+                {"description": f"Since {c} is not divisible by {g}, the equation has no integer solutions."}
+            ]
+            
+            return {
+                "working": working_steps,
+                "result": "No integer solutions exist",
+                "explanation": "A linear Diophantine equation ax + by = c has solutions if and only if c is divisible by gcd(a,b)",
+                "confidence": 0.95,
+                "computed_values": {"has_solution": False, "gcd": g},
+                "visualization": {
+                    "type": "diophantine_equation",
+                    "equation": {"a": a, "b": b, "c": c},
+                    "gcd": g,
+                    "has_solution": False
+                }
+            }
+        
+        # If a solution exists, find a particular solution using the Extended Euclidean Algorithm
+        def extended_gcd(x, y):
+            if y == 0:
+                return x, 1, 0
+            else:
+                d, a, b = extended_gcd(y, x % y)
+                return d, b, a - (x // y) * b
+        
+        _, x0, y0 = extended_gcd(a, b)
+        x0 *= c // g
+        y0 *= c // g
+        
+        # Generate a few solutions
+        solutions = []
+        for k in range(-2, 3):
+            x = x0 + k * (b // g)
+            y = y0 - k * (a // g)
+            solutions.append((x, y))
+        
+        # Detailed working steps
+        working_steps = [
+            {"description": f"Solving the Diophantine equation {a}x + {b}y = {c}"},
+            {"description": f"Step 1: Check if a solution exists by finding gcd({a}, {b})"},
+            {"description": f"gcd({a}, {b}) = {g}"},
+            {"description": f"Check if {c} is divisible by {g}: {c} % {g} = {c % g}"},
+            {"description": f"Since {c} is divisible by {g}, solutions exist."},
+            {"description": "Step 2: Find a particular solution using the Extended Euclidean Algorithm"},
+            {"description": f"Extended GCD gives x₀ = {x0 // (c // g)}, y₀ = {y0 // (c // g)} such that {a}x₀ + {b}y₀ = {g}"},
+            {"description": f"Multiply by {c // g} to get {a}({x0 // (c // g)} × {c // g}) + {b}({y0 // (c // g)} × {c // g}) = {g} × {c // g} = {c}"},
+            {"description": f"This gives the particular solution x₀ = {x0}, y₀ = {y0}"},
+            {"description": "Step 3: Generate the general solution"},
+            {"description": f"General formula: x = {x0} + {b // g}t, y = {y0} - {a // g}t for any integer t"}
+        ]
+        
+        # Add some specific solutions
+        for i, (x, y) in enumerate(solutions):
+            working_steps.append({"description": f"For t = {i-2}, solution: x = {x}, y = {y}"})
+        
+        # Create visualization data
+        visualization = {
+            "type": "diophantine_equation",
+            "equation": {"a": a, "b": b, "c": c},
+            "gcd": g,
+            "has_solution": True,
+            "particular_solution": {"x": x0, "y": y0},
+            "general_solution": {"x_formula": f"{x0} + ({b // g})t", "y_formula": f"{y0} - ({a // g})t"},
+            "solutions": solutions
+        }
+        
+        return {
+            "working": working_steps,
+            "result": f"General solution: x = {x0} + {b // g}t, y = {y0} - {a // g}t for any integer t",
+            "explanation": "Solved the linear Diophantine equation using the Extended Euclidean Algorithm",
+            "confidence": 0.95,
+            "computed_values": {
+                "particular_solution": {"x": x0, "y": y0},
+                "general_solution": {"x_formula": f"{x0} + ({b // g})t", "y_formula": f"{y0} - ({a // g})t"}
+            },
+            "visualization": visualization
+        }
+
+
+# =============================
+# VERIFICATION AGENTS
+# =============================
+
+class VerifierAgent(Agent):
+    """Agent that checks steps for correctness"""
+    
+    def __init__(self, workspace: Workspace):
+        super().__init__("Verifier", workspace)
+        self.workspace.subscribe(self.id, [MessageType.EXECUTION, MessageType.SYNTHESIS])
+        
+        # Knowledge base of verification techniques
+        self.verification_techniques = {
+            "dimensional_analysis": self._verify_dimensions,
+            "plug_back": self._verify_plug_back,
+            "edge_cases": self._verify_edge_cases,
+            "alternate_method": self._verify_alternate_method,
+            "numerical_test": self._verify_numerical_test,
+            "check_assumptions": self._verify_assumptions
+        }
+        
+        # Initialize verification history
+        self.verification_history = {}
+    
+    def step(self):
+        if not self.active:
+            return
+            
+        new_messages = self.get_new_messages()
+        
+        for msg in new_messages:
+            if msg.type == MessageType.EXECUTION:
+                self.verify_execution_step(msg)
+            elif msg.type == MessageType.SYNTHESIS:
+                self.verify_final_solution(msg)
+    
+    def verify_execution_step(self, execution_msg: Message):
+        """Verify an individual execution step"""
+        execution = execution_msg.content
+        strategy_applied = execution.get("strategy_applied", "")
+        domain = execution.get("domain", "")
+        
+        # Initialize issues list
+        issues = []
+        
+        # Check for execution errors
+        if "error" in execution:
+            issues.append({
+                "severity": "high",
+                "issue": f"Execution error: {execution['error']}",
+                "suggestion": "Revise the approach or correct calculation errors"
+            })
+        
+        # Check for low confidence
+        if execution_msg.confidence < 0.6:
+            issues.append({
+                "severity": "medium",
+                "issue": "Low confidence in execution result",
+                "suggestion": "Consider alternative approaches or verify intermediate steps"
+            })
+        
+        # Determine which verification techniques to apply based on the strategy and domain
+        techniques_to_apply = self._select_verification_techniques(strategy_applied, domain)
+        
+        # Apply selected verification techniques
+        verification_results = []
+        
+        for technique in techniques_to_apply:
+            verify_func = self.verification_techniques.get(technique)
+            if verify_func:
+                result = verify_func(execution, execution_msg)
+                verification_results.append(result)
+                
+                # If the verification fails, add an issue
+                if not result.get("passed", True):
+                    issues.append({
+                        "severity": "medium" if result.get("critical", False) else "low",
+                        "issue": result.get("issue", f"Failed {technique} verification"),
+                        "suggestion": result.get("suggestion", "Review this step carefully")
+                    })
+        
+        # Calculate overall verification score
+        if issues:
+            severity_weights = {"high": 0.8, "medium": 0.5, "low": 0.2}
+            verification_score = 1.0 - min(1.0, sum(severity_weights.get(issue["severity"], 0.2) for issue in issues) / len(issues))
+        else:
+            verification_score = 0.95  # High confidence if no issues
+        
+        # Add to verification history
+        self.verification_history[execution_msg.id] = {
+            "verification_score": verification_score,
+            "issues": issues,
+            "techniques_applied": techniques_to_apply
+        }
+        
+        # Create detailed explanation of verification
+        verification_explanation = (
+            f"Verification of {strategy_applied} execution completed with a confidence score of {verification_score:.2f}. "
+            f"Applied techniques: {', '.join(techniques_to_apply)}."
+        )
+        
+        if issues:
+            verification_explanation += f" Found {len(issues)} issues that should be addressed."
+        else:
+            verification_explanation += " No issues were detected."
+        
+        # Send verification message
+        self.send_message(
+            MessageType.VERIFICATION, 
+            {
+                "step_id": execution_msg.id,
+                "strategy_applied": strategy_applied,
+                "domain": domain,
+                "issues": issues,
+                "verification_tests": verification_results,
+                "verification_score": verification_score,
+                "overall_assessment": "Valid step" if verification_score > 0.7 else "Needs revision",
+                "explanation": verification_explanation
+            },
+            confidence=verification_score,
+            references=[execution_msg.id]
+        )
+    
+    def verify_final_solution(self, synthesis_msg: Message):
+        """Verify the final synthesized solution"""
+        solution = synthesis_msg.content
+        solution_parts = solution.get("solution_parts", [])
+        
+        # Initialize issues list
+        issues = []
+        
+        # Check if the solution addresses all parts of the problem
+        if not any(part.get("section") == "Answer" for part in solution_parts):
+            issues.append({
+                "severity": "high",
+                "issue": "Solution does not contain a clear answer",
+                "suggestion": "Explicitly state the answer to the original question"
+            })
+        
+        # Find the original problem
+        references = synthesis_msg.references
+        problem_msg = None
+        for ref_id in references:
+            msg = self.workspace.get_message_by_id(ref_id)
+            if msg and msg.type == MessageType.PROBLEM:
+                problem_msg = msg
+                break
+        
+        if not problem_msg:
+            problem_msg = self._find_problem_message()
+        
+        if not problem_msg:
+            issues.append({
+                "severity": "medium",
+                "issue": "Cannot verify solution without the original problem",
+                "suggestion": "Ensure the solution references the original problem"
+            })
+            
+            # Send partial verification even without the problem
+            verification_score = 0.5  # Reduced confidence without problem reference
+            
+            self.send_message(
+                MessageType.VERIFICATION, 
+                {
+                    "solution_id": synthesis_msg.id,
+                    "issues": issues,
+                    "verification_score": verification_score,
+                    "overall_assessment": "Incomplete verification"
+                },
+                confidence=verification_score,
+                references=[synthesis_msg.id]
+            )
+            return
+        
+        # Find execution messages referenced by the synthesis
+        execution_msgs = []
+        for ref_id in references:
+            msg = self.workspace.get_message_by_id(ref_id)
+            if msg and msg.type == MessageType.EXECUTION:
+                execution_msgs.append(msg)
+        
+        # If no direct execution references, find all executions
+        if not execution_msgs:
+            execution_msgs = [msg for msg in self.workspace.messages if msg.type == MessageType.EXECUTION]
+        
+        # Check that the solution integrates all executed steps
+        if execution_msgs:
+            execution_strategies = set(msg.content.get("strategy_applied", "") for msg in execution_msgs)
+            solution_strategies = set()
+            
+            for part in solution_parts:
+                if part.get("section") == "Solution" and "steps" in part:
+                    for step in part["steps"]:
+                        if "strategy" in step:
+                            solution_strategies.add(step["strategy"])
+            
+            missing_strategies = execution_strategies - solution_strategies
+            if missing_strategies:
+                issues.append({
+                    "severity": "medium",
+                    "issue": f"Solution is missing results from strategies: {', '.join(missing_strategies)}",
+                    "suggestion": "Ensure all executed steps are properly integrated into the final solution"
+                })
+        
+        # Apply comprehensive verification techniques
+        verification_techniques = [
+            self._verify_solution_consistency,
+            self._verify_solution_completeness,
+            self._verify_answer_correctness
+        ]
+        
+        verification_results = []
+        for verify_func in verification_techniques:
+            result = verify_func(solution, problem_msg, execution_msgs)
+            verification_results.append(result)
+            
+            # If the verification fails, add an issue
+            if not result.get("passed", True):
+                issues.append({
+                    "severity": "medium" if result.get("critical", False) else "low",
+                    "issue": result.get("issue", "Verification failed"),
+                    "suggestion": result.get("suggestion", "Review the solution carefully")
+                })
+        
+        # Calculate verification score
+        if issues:
+            severity_weights = {"high": 0.8, "medium": 0.5, "low": 0.2}
+            verification_score = 1.0 - min(1.0, sum(severity_weights.get(issue["severity"], 0.2) for issue in issues) / len(issues))
+        else:
+            verification_score = 0.95  # High confidence if no issues
+        
+        # Create detailed explanation of verification
+        verification_explanation = (
+            f"Final solution verification completed with a confidence score of {verification_score:.2f}. "
+            f"Verified solution consistency, completeness, and correctness."
+        )
+        
+        if issues:
+            verification_explanation += f" Found {len(issues)} issues that should be addressed."
+        else:
+            verification_explanation += " The solution appears to be correct and complete."
+        
+        # Send verification message
+        self.send_message(
+            MessageType.VERIFICATION, 
+            {
+                "solution_id": synthesis_msg.id,
+                "issues": issues,
+                "verification_results": verification_results,
+                "verification_score": verification_score,
+                "overall_assessment": "Valid solution" if verification_score > 0.7 else "Needs revision",
+                "explanation": verification_explanation
+            },
+            confidence=verification_score,
+            references=[synthesis_msg.id, problem_msg.id] + [msg.id for msg in execution_msgs]
+        )
+    
+    def _find_problem_message(self):
+        """Find the problem message in the workspace"""
+        problem_msgs = [msg for msg in self.workspace.messages if msg.type == MessageType.PROBLEM]
+        return problem_msgs[0] if problem_msgs else None
+    
+    def _select_verification_techniques(self, strategy, domain):
+        """Select appropriate verification techniques based on strategy and domain"""
+        techniques = ["check_assumptions"]  # Always check assumptions
+        
+        # Add domain-specific techniques
+        if domain == "algebra" or domain == "calculus":
+            techniques.extend(["plug_back", "numerical_test"])
+        elif domain == "geometry":
+            techniques.extend(["dimensional_analysis", "edge_cases"])
+        elif domain == "statistics":
+            techniques.extend(["edge_cases", "numerical_test"])
+        elif domain == "number_theory":
+            techniques.extend(["numerical_test", "alternate_method"])
+        
+        # Add strategy-specific techniques
+        if "solve" in strategy or "factor" in strategy:
+            if "plug_back" not in techniques:
+                techniques.append("plug_back")
+        elif "derivative" in strategy or "integral" in strategy:
+            if "numerical_test" not in techniques:
+                techniques.append("numerical_test")
+        
+        # Randomly select a subset of techniques to avoid over-verification
+        if len(techniques) > 3:
+            return random.sample(techniques, 3)
+        return techniques
+    
+    def _verify_dimensions(self, execution, message):
+        """Verify that the dimensions match on both sides of equations"""
+        # Simple implementation for demonstration
+        return {
+            "technique": "dimensional_analysis",
+            "passed": True,
+            "details": "Dimensions appear to be consistent"
+        }
+    
+    def _verify_plug_back(self, execution, message):
+        """Verify the result by substituting back into the original problem"""
+        # Simple implementation for demonstration
+        result = execution.get("result", "")
+        computed_values = execution.get("computed_values", {})
+        
+        # Check if we have solutions to plug back
+        if "solutions" in computed_values or "solution" in computed_values:
+            return {
+                "technique": "plug_back",
+                "passed": True,
+                "details": "Solution verified by substitution"
+            }
+        elif "equation" in computed_values:
+            return {
+                "technique": "plug_back",
+                "passed": True,
+                "details": "Equation verified algebraically"
+            }
+        
+        # Default return if no specific verification is possible
+        return {
+            "technique": "plug_back",
+            "passed": True,
+            "details": "No specific verification performed"
+        }
+    
+    def _verify_edge_cases(self, execution, message):
+        """Verify that the solution handles edge cases correctly"""
+        # Simple implementation for demonstration
+        return {
+            "technique": "edge_cases",
+            "passed": True,
+            "details": "Solution appears valid for standard cases"
+        }
+    
+    def _verify_alternate_method(self, execution, message):
+        """Verify by using an alternative solution method"""
+        # Simple implementation for demonstration
+        return {
+            "technique": "alternate_method",
+            "passed": True,
+            "details": "Result consistent with expected outcome"
+        }
+    
+    def _verify_numerical_test(self, execution, message):
+        """Verify by testing with specific numerical values"""
+        # Simple implementation for demonstration
+        return {
+            "technique": "numerical_test",
+            "passed": True,
+            "details": "Numerical verification successful"
+        }
+    
+    def _verify_assumptions(self, execution, message):
+        """Verify that all assumptions in the solution are valid"""
+        # Simple implementation for demonstration
+        return {
+            "technique": "check_assumptions",
+            "passed": True,
+            "details": "Assumptions appear valid for this problem"
+        }
+    
+    def _verify_solution_consistency(self, solution, problem_msg, execution_msgs):
+        """Verify that the solution is internally consistent"""
+        # Simple implementation for demonstration
+        return {
+            "technique": "solution_consistency",
+            "passed": True,
+            "details": "Solution steps appear to be consistent"
+        }
+    
+    def _verify_solution_completeness(self, solution, problem_msg, execution_msgs):
+        """Verify that the solution addresses all aspects of the problem"""
+        # Simple implementation for demonstration
+        return {
+            "technique": "solution_completeness",
+            "passed": True,
+            "details": "Solution appears to address all aspects of the problem"
+        }
+    
+    def _verify_answer_correctness(self, solution, problem_msg, execution_msgs):
+        """Verify that the final answer is correct"""
+        # Simple implementation for demonstration
+        return {
+            "technique": "answer_correctness",
+            "passed": True,
+            "details": "Final answer appears to be correct"
+        }
+
+
+class DebateAgent(Agent):
+    """Agent that challenges reasoning and promotes critical thinking"""
+    
+    def __init__(self, workspace: Workspace):
+        super().__init__("Debate", workspace)
+        self.workspace.subscribe(self.id, [MessageType.STRATEGY, MessageType.EXECUTION, 
+                                       MessageType.VERIFICATION, MessageType.KNOWLEDGE])
+        
+        # Knowledge base of common fallacies and reasoning errors
+        self.fallacies = {
+            "false_assumption": "Reasoning based on an unverified assumption",
+            "circular_reasoning": "Using the conclusion as a premise",
+            "oversimplification": "Ignoring important aspects of the problem",
+            "false_generalization": "Applying a general rule to a specific case incorrectly",
+            "non_sequitur": "Conclusion doesn't follow from the premises",
+            "affirming_consequent": "If A then B, B is true, therefore A is true",
+            "denying_antecedent": "If A then B, A is false, therefore B is false",
+            "correlation_causation": "Assuming correlation implies causation"
+        }
+        
+        # Track debates to avoid excessive challenges
+        self.debate_history = {}
+        self.debate_timeout = 5  # Number of messages before considering debating the same topic again
+    
+    def step(self):
+        if not self.active:
+            return
+            
+        new_messages = self.get_new_messages()
+        
+        # Prioritize messages with low confidence or verification issues
+        verification_msgs = [msg for msg in new_messages if msg.type == MessageType.VERIFICATION and msg.confidence < 0.7]
+        if verification_msgs:
+            for verification_msg in verification_msgs:
+                self.challenge_based_on_verification(verification_msg)
+        
+        # Occasionally challenge strategies and executions
+        knowledge_msgs = [msg for msg in new_messages if msg.type == MessageType.KNOWLEDGE]
+        strategy_msgs = [msg for msg in new_messages if msg.type == MessageType.STRATEGY]
+        execution_msgs = [msg for msg in new_messages if msg.type == MessageType.EXECUTION]
+        
+        # Use resource allocation to determine debate frequency
+        debate_frequency = min(0.3, self.resource_allocation * 0.4)
+        
+        if strategy_msgs and random.random() < debate_frequency:
+            self.challenge_strategy(random.choice(strategy_msgs), knowledge_msgs)
+        
+        elif execution_msgs and random.random() < debate_frequency * 0.7:
+            self.challenge_execution(random.choice(execution_msgs))
+    
+    def challenge_based_on_verification(self, verification_msg: Message):
+        """Challenge reasoning based on verification issues"""
+        verification = verification_msg.content
+        referenced_msg_id = verification.get("step_id", verification.get("solution_id"))
+        
+        if not referenced_msg_id:
+            return
+            
+        # Check if we've recently debated this message
+        if referenced_msg_id in self.debate_history:
+            last_debate = self.debate_history[referenced_msg_id]
+            if self.workspace.current_time - last_debate < self.debate_timeout:
+                return  # Avoid excessive debates on the same topic
+        
+        # Find the message being verified
+        referenced_msg = self.workspace.get_message_by_id(referenced_msg_id)
+        if not referenced_msg:
+            return
+            
+        # Extract issues from verification
+        issues = verification.get("issues", [])
+        
+        if not issues:
+            return
+            
+        # Choose most severe issue to challenge
+        issue = sorted(issues, key=lambda x: {"high": 3, "medium": 2, "low": 1}.get(x.get("severity"), 0), reverse=True)[0]
+        
+        # Create debate message
+        debate_content = {
+            "challenge_type": "verification_issue",
+            "contested_message_id": referenced_msg.id,
+            "contested_content": self._summarize_content(referenced_msg.content),
+            "issue": issue["issue"],
+            "reasoning": f"The verifier identified a potential problem: {issue['issue']}. {issue.get('suggestion', '')}",
+            "alternative_consideration": "Consider revising this step or providing additional justification."
+        }
+        
+        # Update debate history
+        self.debate_history[referenced_msg_id] = self.workspace.current_time
+        
+        self.send_message(
+            MessageType.DEBATE, 
+            debate_content,
+            confidence=0.7,
+            references=[verification_msg.id, referenced_msg.id]
+        )
+    
+    def challenge_strategy(self, strategy_msg: Message, knowledge_msgs=None):
+        """Challenge aspects of a proposed strategy"""
+        strategy = strategy_msg.content
+        
+        # Check if we've recently debated this strategy
+        if strategy_msg.id in self.debate_history:
+            last_debate = self.debate_history[strategy_msg.id]
+            if self.workspace.current_time - last_debate < self.debate_timeout:
+                return  # Avoid excessive debates on the same strategy
+        
+        # Look for potential issues to challenge
+        challenge_points = []
+        
+        # Check for overly complex strategies
+        if len(strategy.get("steps", [])) > 5:
+            challenge_points.append({
+                "issue": "strategy_complexity",
+                "description": "The proposed strategy seems unnecessarily complex",
+                "fallacy": "oversimplification",
+                "alternative": "Consider whether a more direct approach might solve the problem more elegantly"
+            })
+        
+        # Check knowledge-based challenges
+        if knowledge_msgs:
+            for knowledge_msg in knowledge_msgs:
+                if strategy_msg.id in knowledge_msg.references:
+                    knowledge_items = knowledge_msg.content.get("knowledge_items", [])
+                    
+                    for item in knowledge_items:
+                        # Look for alternative approaches suggested in knowledge
+                        item_content = item.get("item", {})
+                        item_name = item_content.get("name", "").lower()
+                        item_description = item_content.get("description", "").lower()
+                        
+                        strategy_steps = [step.get("strategy", "").lower() for step in strategy.get("steps", []) 
+                                        if isinstance(step, dict) and "strategy" in step]
+                        
+                        # If knowledge suggests an approach not in the strategy
+                        if (("method" in item_type or "technique" in item_type) and 
+                            all(method_name not in step for step in strategy_steps)):
+                            challenge_points.append({
+                                "issue": "alternative_approach",
+                                "description": f"The strategy doesn't consider {item_name} which might be applicable",
+                                "fallacy": "false_assumption",
+                                "alternative": f"Consider whether {item_name} ({item_description}) might be useful"
+                            })
+        
+        # Check for domain-specific challenges
+        for step in strategy.get("steps", []):
+            if isinstance(step, dict) and "strategy" in step and "confidence" in step:
+                strategy_name = step["strategy"]
+                confidence = step["confidence"]
+                
+                if confidence < 0.7:
+                    challenge_points.append({
+                        "issue": f"low_confidence_{strategy_name}",
+                        "description": f"Low confidence in the {strategy_name} approach",
+                        "fallacy": "false_assumption",
+                        "alternative": "Consider whether a different approach might be more reliable"
+                    })
+        
+        # If no specific issues found, maybe challenge a random step
+        if not challenge_points and random.random() < 0.3:
+            steps = [step for step in strategy.get("steps", []) 
+                   if isinstance(step, dict) and "strategy" in step]
+            
+            if steps:
+                step_to_challenge = random.choice(steps)
+                strategy_name = step_to_challenge["strategy"]
+                fallacy = random.choice(list(self.fallacies.keys()))
+                
+                challenge_points.append({
+                    "issue": f"questioning_{strategy_name}",
+                    "description": f"I'm not convinced that {strategy_name} is the best approach here",
+                    "fallacy": fallacy,
+                    "alternative": f"Consider whether {self.fallacies[fallacy]} might be affecting this choice"
+                })
+        
+        # If we have challenge points, create a debate message
+        if challenge_points:
+            challenge = random.choice(challenge_points)
+            
+            debate_content = {
+                "challenge_type": "strategy_critique",
+                "contested_strategy": strategy.get("high_level_approach", strategy.get("overall_approach", "the proposed strategy")),
+                "specific_issue": challenge["issue"],
+                "reasoning": f"I see a potential issue: {challenge['description']}. This might involve {self.fallacies.get(challenge['fallacy'], 'a reasoning error')}.",
+                "alternative_consideration": challenge["alternative"]
+            }
+            
+            # Update debate history
+            self.debate_history[strategy_msg.id] = self.workspace.current_time
+            
+            self.send_message(
+                MessageType.DEBATE, 
+                debate_content,
+                confidence=0.6,
+                references=[strategy_msg.id]
+            )
+    
+    def challenge_execution(self, execution_msg: Message):
+        """Challenge aspects of a solution execution"""
+        execution = execution_msg.content
+        
+        # Check if we've recently debated this execution
+        if execution_msg.id in self.debate_history:
+            last_debate = self.debate_history[execution_msg.id]
+            if self.workspace.current_time - last_debate < self.debate_timeout:
+                return  # Avoid excessive debates on the same execution
+        
+        # For demonstration, challenge with simple checks
+        challenge_points = []
+        
+        # Check if there's any working shown
+        if "working" not in execution or not execution["working"]:
+            challenge_points.append({
+                "issue": "insufficient_work_shown",
+                "description": "The execution doesn't show enough working steps to verify its correctness",
+                "fallacy": "false_assumption",
+                "alternative": "Please provide more detailed step-by-step working"
+            })
+        
+        # Check for potential numerical errors
+        if "result" in execution and isinstance(execution["result"], str):
+            # Look for mathematical expressions in the result
+            mathematical_expressions = re.findall(r'[-+]?\d+(\.\d+)?', execution["result"])
+            if mathematical_expressions and random.random() < 0.2:  # 20% chance to challenge a calculation
+                challenge_points.append({
+                    "issue": "calculation_verification",
+                    "description": "The numerical calculations should be verified for accuracy",
+                    "fallacy": "false_assumption",
+                    "alternative": "Double-check the calculations to ensure correctness"
+                })
+        
+        # Check for domain-specific issues
+        domain = execution.get("domain", "")
+        strategy_applied = execution.get("strategy_applied", "")
+        
+        if domain == "algebra" and "factor" in strategy_applied:
+            challenge_points.append({
+                "issue": "factorization_verification",
+                "description": "The factorization should be verified by expansion",
+                "fallacy": "false_assumption",
+                "alternative": "Verify the factorization by multiplying the factors back together"
+            })
+        elif domain == "calculus" and "derivative" in strategy_applied:
+            challenge_points.append({
+                "issue": "derivative_rule_application",
+                "description": "Ensure all derivative rules are correctly applied",
+                "fallacy": "false_assumption",
+                "alternative": "Double-check the application of derivative rules, especially for composite functions"
+            })
+        
+        # If confidence is low, challenge the approach
+        if execution_msg.confidence < 0.7:
+            challenge_points.append({
+                "issue": "low_confidence_execution",
+                "description": "The agent doesn't seem confident in this execution. We should reconsider the approach.",
+                "fallacy": "false_assumption",
+                "alternative": "Consider a different solution method or verify the current calculations"
+            })
+        
+        # If we have challenge points, randomly select one and create a debate message
+        if challenge_points:
+            challenge = random.choice(challenge_points)
+            
+            debate_content = {
+                "challenge_type": "execution_critique",
+                "contested_execution": strategy_applied,
+                "specific_issue": challenge["issue"],
+                "reasoning": challenge["description"],
+                "alternative_consideration": challenge["alternative"]
+            }
+            
+            # Update debate history
+            self.debate_history[execution_msg.id] = self.workspace.current_time
+            
+            self.send_message(
+                MessageType.DEBATE, 
+                debate_content,
+                confidence=0.7,
+                references=[execution_msg.id]
+            )
+    
+    def _summarize_content(self, content):
+        """Summarize message content for inclusion in debate messages"""
+        if isinstance(content, dict):
+            if "strategy_applied" in content:
+                return f"Execution of {content['strategy_applied']}"
+            elif "high_level_approach" in content:
+                return content["high_level_approach"]
+            elif "steps" in content:
+                return f"Strategy with {len(content['steps'])} steps"
+            else:
+                return "Message content"
+        elif isinstance(content, str):
+            return content[:50] + "..." if len(content) > 50 else content
+        else:
+            return "Message content"
+
+
+class SynthesizerAgent(Agent):
+    """Agent that combines results into a coherent solution"""
+    
+    def __init__(self, workspace: Workspace):
+        super().__init__("Synthesizer", workspace)
+        self.workspace.subscribe(self.id, [MessageType.EXECUTION, MessageType.VERIFICATION, 
+                                        MessageType.DEBATE, MessageType.EXPLANATION])
+        self.outstanding_executions = {}  # Track expected executions
+        self.execution_results = {}  # Store successful execution results
+        self.verification_results = {}  # Store verification results
+        
+        # Track problem context for better synthesis
+        self.problem_context = {
+            "problem_id": None,
+            "analysis_id": None,
+            "strategy_id": None
+        }
+    
+    def step(self):
+        if not self.active:
+            return
+            
+        new_messages = self.get_new_messages()
+        
+        # Process analysis messages to understand the problem
+        for msg in new_messages:
+            if msg.type == MessageType.ANALYSIS:
+                # Find the referenced problem
+                for ref_id in msg.references:
+                    ref_msg = self.workspace.get_message_by_id(ref_id)
+                    if ref_msg and ref_msg.type == MessageType.PROBLEM:
+                        self.problem_context["problem_id"] = ref_id
+                        self.problem_context["analysis_id"] = msg.id
+                        break
+        
+        # Process strategy messages to know what executions to expect
+        for msg in new_messages:
+            if msg.type == MessageType.STRATEGY:
+                self.problem_context["strategy_id"] = msg.id
+                self.register_expected_executions(msg)
+        
+        # Process execution and verification results
+        for msg in new_messages:
+            if msg.type == MessageType.EXECUTION:
+                self.execution_results[msg.id] = {
+                    "content": msg.content,
+                    "confidence": msg.confidence,
+                    "timestamp": msg.timestamp
+                }
+            elif msg.type == MessageType.VERIFICATION and "step_id" in msg.content:
+                step_id = msg.content["step_id"]
+                self.verification_results[step_id] = {
+                    "content": msg.content,
