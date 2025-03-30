@@ -7033,4 +7033,314 @@ class MetaCognitiveAgent(Agent):
             self.resource_allocation["Debate"] = 0.7
             
         elif self.current_phase == "execution":
-            # Allocate to the most relevant executor
+            # Allocate to the most relevant executors based on domain
+            analysis_msgs = [msg for msg in self.workspace.messages if msg.type == MessageType.ANALYSIS]
+            if analysis_msgs:
+                analysis = max(analysis_msgs, key=lambda x: x.timestamp).content
+                domains = analysis.get("domains", {})
+                
+                if domains:
+                    # Sort domains by confidence
+                    sorted_domains = sorted(domains.items(), key=lambda x: x[1], reverse=True)
+                    
+                    # Allocate resources to relevant executors
+                    for domain, confidence in sorted_domains:
+                        if domain == "algebra":
+                            self.resource_allocation["AlgebraExecutor"] = 0.5 + confidence * 0.5
+                        elif domain == "calculus":
+                            self.resource_allocation["CalculusExecutor"] = 0.5 + confidence * 0.5
+                        elif domain == "geometry":
+                            self.resource_allocation["GeometryExecutor"] = 0.5 + confidence * 0.5
+                        elif domain in ["statistics", "probability"]:
+                            self.resource_allocation["StatisticsExecutor"] = 0.5 + confidence * 0.5
+                        elif domain == "number_theory":
+                            self.resource_allocation["NumberTheoryExecutor"] = 0.5 + confidence * 0.5
+            
+            self.resource_allocation["KnowledgeBase"] = 0.7
+            self.resource_allocation["Verifier"] = 0.8
+            
+        elif self.current_phase == "verification":
+            self.resource_allocation["Verifier"] = 1.0
+            self.resource_allocation["Debate"] = 0.8
+            self.resource_allocation["KnowledgeBase"] = 0.6
+            
+        elif self.current_phase == "synthesis":
+            self.resource_allocation["Synthesizer"] = 1.0
+            self.resource_allocation["Verifier"] = 0.7
+        
+        # Adjust based on metrics
+        if self.metrics["problem_complexity"] > 0.7:
+            # For complex problems, increase intuition and knowledge base
+            self.resource_allocation["Intuition"] = max(self.resource_allocation["Intuition"], 0.8)
+            self.resource_allocation["KnowledgeBase"] = max(self.resource_allocation["KnowledgeBase"], 0.8)
+            
+        if self.metrics["solution_confidence"] < 0.6:
+            # For low confidence solutions, increase verification and debate
+            self.resource_allocation["Verifier"] = max(self.resource_allocation["Verifier"], 0.9)
+            self.resource_allocation["Debate"] = max(self.resource_allocation["Debate"], 0.8)
+        
+        # Apply resource allocation to agents
+        for agent_id, allocation in self.resource_allocation.items():
+            for agent in self.workspace.messages:
+                if agent.sender == agent_id:
+                    # Find the agent instance and set its resource allocation
+                    break
+        
+        # Send resource allocation message
+        self.send_message(
+            MessageType.META, 
+            {
+                "resource_allocation": self.resource_allocation,
+                "current_phase": self.current_phase,
+                "metrics": self.metrics,
+                "explanation": f"Resources allocated based on {self.current_phase} phase and current metrics."
+            },
+            confidence=0.9
+        )
+    
+    def check_phase_transition(self):
+        """Check if we should transition to the next problem-solving phase"""
+        # Count messages of each type
+        message_counts = {}
+        for msg_type in MessageType:
+            message_counts[msg_type] = len([msg for msg in self.workspace.messages if msg.type == msg_type])
+        
+        # Calculate time spent in current phase
+        time_in_current_phase = self.workspace.current_time - self.phase_start_time
+        
+        # Check if we should transition based on messages and time
+        transition_conditions = {
+            "analysis": lambda: message_counts[MessageType.ANALYSIS] > 0 and time_in_current_phase > 3,
+            "strategy_formulation": lambda: message_counts[MessageType.STRATEGY] > 0 and time_in_current_phase > 3,
+            "execution": lambda: message_counts[MessageType.EXECUTION] >= 1 and time_in_current_phase > 5,
+            "verification": lambda: (message_counts[MessageType.EXECUTION] > 0 and 
+                                   message_counts[MessageType.VERIFICATION] / message_counts[MessageType.EXECUTION] >= 0.7 and
+                                   time_in_current_phase > 3),
+            "synthesis": lambda: message_counts[MessageType.SYNTHESIS] > 0 and time_in_current_phase > 2,
+            "waiting_for_problem": lambda: message_counts[MessageType.PROBLEM] > 0
+        }
+        
+        if self.current_phase in transition_conditions and transition_conditions[self.current_phase]():
+            next_phase = self.phase_transitions.get(self.current_phase)
+            if next_phase:
+                # Record time in current phase
+                time_in_phase = self.workspace.current_time - self.phase_start_time
+                self.phase_history.append({
+                    "phase": self.current_phase,
+                    "duration": time_in_phase,
+                    "transition_time": self.workspace.current_time
+                })
+                
+                # Update metrics
+                self.metrics["time_in_phase"][self.current_phase] = self.metrics["time_in_phase"].get(self.current_phase, 0) + time_in_phase
+                
+                # Transition to next phase
+                self.current_phase = next_phase
+                self.phase_start_time = self.workspace.current_time
+                
+                # Notify about phase transition
+                self.send_message(
+                    MessageType.META, 
+                    {
+                        "phase_transition": {
+                            "from": self.current_phase,
+                            "to": next_phase
+                        },
+                        "explanation": f"Transitioning from {self.current_phase} to {next_phase} phase.",
+                        "phase_history": self.phase_history,
+                        "current_metrics": self.metrics
+                    },
+                    confidence=0.9
+                )
+
+
+# =============================
+# MAIN SIGMA SYSTEM
+# =============================
+
+class SIGMA:
+    """Main orchestrator for the multi-agent math reasoning system"""
+    
+    def __init__(self):
+        self.workspace = Workspace()
+        
+        # Create all agents
+        self.agents = {
+            # Analysis agents
+            "ProblemAnalyzer": ProblemAnalyzerAgent(self.workspace),
+            "KnowledgeBase": KnowledgeBaseAgent(self.workspace),
+            "AnalogicalReasoning": AnalogicalReasoningAgent(self.workspace),
+            
+            # Strategy agents
+            "Strategy": StrategyAgent(self.workspace),
+            
+            # Executor agents
+            "AlgebraExecutor": AlgebraExecutorAgent(self.workspace),
+            "CalculusExecutor": CalculusExecutorAgent(self.workspace),
+            "GeometryExecutor": GeometryExecutorAgent(self.workspace),
+            "StatisticsExecutor": StatisticsExecutorAgent(self.workspace),
+            "NumberTheoryExecutor": NumberTheoryExecutorAgent(self.workspace),
+            
+            # Intuition agent
+            "Intuition": IntuitionAgent(self.workspace),
+            
+            # Verification and synthesis agents
+            "Verifier": VerifierAgent(self.workspace),
+            "Debate": DebateAgent(self.workspace),
+            "Synthesizer": SynthesizerAgent(self.workspace),
+            
+            # Meta-cognitive agent
+            "MetaCognitive": MetaCognitiveAgent(self.workspace)
+        }
+    
+    def solve_problem(self, problem_text: str, max_steps: int = 100) -> Dict:
+        """Solve a mathematical problem using the multi-agent system"""
+        logger.info(f"Starting to solve problem: {problem_text}")
+        
+        # Reset the workspace
+        self.workspace = Workspace()
+        for agent_id, agent in self.agents.items():
+            agent.workspace = self.workspace
+            agent.last_processed_time = 0
+        
+        # Add the problem to the workspace
+        self.workspace.add_message(
+            Message(MessageType.PROBLEM, problem_text, "User", 1.0)
+        )
+        
+        # Run the agent cycles
+        for step in range(max_steps):
+            logger.info(f"Step {step+1}/{max_steps}")
+            
+            # Let each agent take a step
+            for agent_id, agent in self.agents.items():
+                agent.step()
+            
+            # Check if we have a solution
+            synthesis_msgs = [msg for msg in self.workspace.messages if msg.type == MessageType.SYNTHESIS]
+            explanation_msgs = [msg for msg in self.workspace.messages if msg.type == MessageType.EXPLANATION]
+            if synthesis_msgs and explanation_msgs:
+                logger.info("Solution synthesized and explained. Stopping.")
+                break
+        
+        # Return the final solution if available
+        synthesis_msgs = [msg for msg in self.workspace.messages if msg.type == MessageType.SYNTHESIS]
+        explanation_msgs = [msg for msg in self.workspace.messages if msg.type == MessageType.EXPLANATION]
+        
+        if synthesis_msgs and explanation_msgs:
+            final_solution = max(synthesis_msgs, key=lambda x: x.timestamp)
+            final_explanation = max(explanation_msgs, key=lambda x: x.timestamp)
+            
+            return {
+                "solution": final_solution.content,
+                "explanation": final_explanation.content,
+                "confidence": final_solution.confidence,
+                "steps_taken": len(self.workspace.messages),
+                "agent_messages": {agent_id: len([msg for msg in self.workspace.messages if msg.sender == agent_id]) 
+                                  for agent_id in self.agents},
+                "message_timeline": self.workspace.get_performance_report(),
+                "knowledge_graph": self.workspace.generate_knowledge_graph_visualization()
+            }
+        else:
+            return {
+                "solution": None,
+                "error": "No solution synthesized within maximum steps",
+                "steps_taken": len(self.workspace.messages),
+                "agent_messages": {agent_id: len([msg for msg in self.workspace.messages if msg.sender == agent_id]) 
+                                  for agent_id in self.agents},
+                "message_timeline": self.workspace.get_performance_report()
+            }
+    
+    def explain_solution(self, result: Dict) -> str:
+        """Generate a human-readable explanation of the solution"""
+        if not result or "solution" not in result or not result["solution"]:
+            return "Unable to solve the problem. The system did not reach a solution."
+        
+        solution = result["solution"]
+        explanation = result.get("explanation", {}).get("content", "")
+        
+        if explanation:
+            return explanation
+        
+        # If no explanation is provided, generate one from the solution
+        parts = solution.get("solution_parts", [])
+        
+        # Build explanation
+        explanation_lines = []
+        
+        for part in parts:
+            section = part.get("section", "")
+            content = part.get("content", "")
+            
+            if section == "Problem":
+                explanation_lines.append(f"Problem: {content}")
+                
+            elif section == "Approach":
+                explanation_lines.append(f"Approach: {content}")
+                
+            elif section == "Solution":
+                explanation_lines.append("Solution steps:")
+                steps = part.get("steps", [])
+                for i, step in enumerate(steps, 1):
+                    explanation_lines.append(f"  Step {i}: {step.get('description', '')}")
+                    
+                    if 'working' in step:
+                        if isinstance(step['working'], list):
+                            for work in step['working']:
+                                explanation_lines.append(f"    {work}")
+                        else:
+                            explanation_lines.append(f"    {step['working']}")
+                            
+                    if 'result' in step:
+                        explanation_lines.append(f"    Result: {step['result']}")
+                        
+                    if 'explanation' in step:
+                        explanation_lines.append(f"    Explanation: {step['explanation']}")
+                    
+            elif section == "Answer":
+                explanation_lines.append(f"Answer: {content}")
+        
+        # Add confidence information
+        explanation_lines.append(f"\nSolution confidence: {result.get('confidence', 0) * 100:.1f}%")
+        
+        return "\n".join(explanation_lines)
+    
+    def generate_performance_report(self) -> Dict:
+        """Generate a report on system performance"""
+        return self.workspace.get_performance_report()
+    
+    def generate_knowledge_graph(self) -> Dict:
+        """Generate a knowledge graph visualization"""
+        return self.workspace.generate_knowledge_graph_visualization()
+    
+    def get_agent_contributions(self) -> Dict:
+        """Get a breakdown of agent contributions"""
+        return {agent_id: len([msg for msg in self.workspace.messages if msg.sender == agent_id]) 
+               for agent_id in self.agents}
+
+
+# Example usage
+def main():
+    # Create the multi-agent system
+    sigma = SIGMA()
+    
+    # Example problem
+    problem = "Solve the quadratic equation x^2 - 5x + 6 = 0"
+    
+    # Solve the problem
+    result = sigma.solve_problem(problem)
+    
+    # Explain the solution
+    explanation = sigma.explain_solution(result)
+    print(explanation)
+    
+    # Print metrics
+    print("\nSystem metrics:")
+    print(f"Steps taken: {result['steps_taken']}")
+    print("Agent contributions:")
+    for agent_id, message_count in result['agent_messages'].items():
+        print(f"  {agent_id}: {message_count} messages")
+
+
+if __name__ == "__main__":
+    main()
