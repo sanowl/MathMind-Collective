@@ -6589,3 +6589,448 @@ class SynthesizerAgent(Agent):
                 step_id = msg.content["step_id"]
                 self.verification_results[step_id] = {
                     "content": msg.content,
+                    "confidence": msg.confidence,
+                    "timestamp": msg.timestamp
+                }
+        
+        # Check if we have all expected executions and their verifications
+        self.check_synthesis_readiness()
+    
+    def register_expected_executions(self, strategy_msg: Message):
+        """Register what execution steps we expect based on the strategy"""
+        strategy = strategy_msg.content
+        
+        # Clear previous expectations
+        self.outstanding_executions = {}
+        
+        # Register new expectations
+        for step in strategy.get("steps", []):
+            if isinstance(step, dict) and "strategy" in step and "domain" in step:
+                step_id = f"{step['domain']}_{step['strategy']}"
+                self.outstanding_executions[step_id] = {
+                    "step": step,
+                    "completed": False,
+                    "execution_id": None
+                }
+    
+    def check_synthesis_readiness(self):
+        """Check if we have enough information to synthesize a solution"""
+        # Update completion status of expected executions
+        for exec_id, exec_data in self.execution_results.items():
+            content = exec_data["content"]
+            if "strategy_applied" in content and "domain" in content:
+                strategy = content["strategy_applied"]
+                domain = content["domain"]
+                step_id = f"{domain}_{strategy}"
+                
+                if step_id in self.outstanding_executions and not self.outstanding_executions[step_id]["completed"]:
+                    self.outstanding_executions[step_id]["completed"] = True
+                    self.outstanding_executions[step_id]["execution_id"] = exec_id
+        
+        # Count completed and verified executions
+        completed_count = sum(1 for step_data in self.outstanding_executions.values() if step_data["completed"])
+        total_count = len(self.outstanding_executions)
+        
+        # Check if we have enough to synthesize
+        # We proceed if all steps are complete, or if at least 70% are complete
+        # Also ensure we have at least one execution before proceeding
+        if (completed_count > 0 and 
+            (completed_count == total_count or 
+             (total_count > 0 and completed_count / total_count >= 0.7))):
+            self.synthesize_solution()
+    
+    def synthesize_solution(self):
+        """Synthesize a complete solution from all execution results"""
+        # Get problem and analysis
+        problem_id = self.problem_context.get("problem_id")
+        analysis_id = self.problem_context.get("analysis_id")
+        strategy_id = self.problem_context.get("strategy_id")
+        
+        problem_msg = None
+        analysis_msg = None
+        strategy_msg = None
+        
+        if problem_id:
+            problem_msg = self.workspace.get_message_by_id(problem_id)
+        
+        if analysis_id:
+            analysis_msg = self.workspace.get_message_by_id(analysis_id)
+        
+        if strategy_id:
+            strategy_msg = self.workspace.get_message_by_id(strategy_id)
+        
+        # If we don't have a problem message, try to find one
+        if not problem_msg:
+            problem_msgs = [msg for msg in self.workspace.messages if msg.type == MessageType.PROBLEM]
+            if problem_msgs:
+                problem_msg = problem_msgs[0]
+                problem_id = problem_msg.id
+        
+        # If we don't have an analysis message, try to find one
+        if not analysis_msg and problem_id:
+            analysis_msgs = [msg for msg in self.workspace.messages if msg.type == MessageType.ANALYSIS 
+                           and problem_id in msg.references]
+            if analysis_msgs:
+                analysis_msg = max(analysis_msgs, key=lambda x: x.timestamp)
+                analysis_id = analysis_msg.id
+        
+        # If we don't have a strategy message, try to find one
+        if not strategy_msg and analysis_id:
+            strategy_msgs = [msg for msg in self.workspace.messages if msg.type == MessageType.STRATEGY 
+                           and analysis_id in msg.references]
+            if strategy_msgs:
+                strategy_msg = max(strategy_msgs, key=lambda x: x.timestamp)
+                strategy_id = strategy_msg.id
+        
+        # Get problem details
+        problem_text = problem_msg.content if problem_msg else "Unknown problem"
+        analysis = analysis_msg.content if analysis_msg else {}
+        strategy = strategy_msg.content if strategy_msg else {}
+        
+        # Collect all successful executions
+        successful_executions = []
+        for step_id, step_data in self.outstanding_executions.items():
+            if step_data["completed"] and step_data["execution_id"] in self.execution_results:
+                exec_data = self.execution_results[step_data["execution_id"]]
+                
+                # Check if this execution was verified successfully
+                verification_passed = True
+                if step_data["execution_id"] in self.verification_results:
+                    verify_data = self.verification_results[step_data["execution_id"]]
+                    verification_passed = verify_data["confidence"] >= 0.6
+                
+                if verification_passed:
+                    successful_executions.append({
+                        "step": step_data["step"],
+                        "execution": exec_data["content"],
+                        "confidence": exec_data["confidence"],
+                        "timestamp": exec_data["timestamp"]
+                    })
+        
+        # Sort executions by step number or timestamp if step number not available
+        successful_executions.sort(key=lambda x: (
+            x["step"].get("step", float('inf')) if isinstance(x["step"], dict) else float('inf'),
+            x["timestamp"]
+        ))
+        
+        # Build the solution
+        solution_parts = []
+        
+        # Add problem statement
+        solution_parts.append({
+            "section": "Problem",
+            "content": problem_text
+        })
+        
+        # Add approach explanation
+        if strategy:
+            approach = strategy.get("high_level_approach", strategy.get("overall_approach", "Mathematical problem-solving approach"))
+            solution_parts.append({
+                "section": "Approach",
+                "content": approach
+            })
+        
+        # Add solution steps
+        solution_parts.append({
+            "section": "Solution",
+            "steps": []
+        })
+        
+        for exec_data in successful_executions:
+            execution = exec_data["execution"]
+            step_details = {}
+            
+            # Include step description
+            if "step_description" in execution:
+                step_details["description"] = execution["step_description"]
+            elif "strategy_applied" in execution:
+                step_details["description"] = f"Applying {execution['strategy_applied']}"
+            
+            # Include working steps
+            if "working" in execution:
+                if isinstance(execution["working"], list):
+                    step_details["working"] = [step["description"] for step in execution["working"] 
+                                            if isinstance(step, dict) and "description" in step]
+                else:
+                    step_details["working"] = execution["working"]
+            
+            # Include result
+            if "result" in execution:
+                step_details["result"] = execution["result"]
+            
+            # Include explanation
+            if "explanation" in execution:
+                step_details["explanation"] = execution["explanation"]
+            
+            # Include any visualizations
+            if "visualization" in execution:
+                step_details["visualization"] = execution["visualization"]
+            
+            solution_parts[-1]["steps"].append(step_details)
+        
+        # Add final answer if available
+        if successful_executions:
+            final_result = None
+            
+            # Try to find the most appropriate result to use as the answer
+            for exec_data in reversed(successful_executions):  # Start from the last execution
+                execution = exec_data["execution"]
+                if "result" in execution:
+                    final_result = execution["result"]
+                    break
+            
+            if final_result:
+                solution_parts.append({
+                    "section": "Answer",
+                    "content": final_result
+                })
+        
+        # Calculate overall confidence
+        if successful_executions:
+            overall_confidence = sum(exec_data["confidence"] for exec_data in successful_executions) / len(successful_executions)
+        else:
+            overall_confidence = 0.5
+        
+        # Generate explanation of the solution process
+        solution_explanation = self._generate_solution_explanation(problem_text, strategy, successful_executions)
+        
+        # Create synthesis message references
+        synthesis_references = []
+        if problem_msg:
+            synthesis_references.append(problem_msg.id)
+        if analysis_msg:
+            synthesis_references.append(analysis_msg.id)
+        if strategy_msg:
+            synthesis_references.append(strategy_msg.id)
+        synthesis_references.extend([exec_data["execution_id"] for step_data in self.outstanding_executions.values() 
+                                  if step_data["completed"] and "execution_id" in step_data])
+        
+        # Send synthesized solution
+        synthesis_message_id = self.send_message(
+            MessageType.SYNTHESIS, 
+            {
+                "solution_parts": solution_parts,
+                "explanation": solution_explanation,
+                "completeness": len(successful_executions) / max(1, len(self.outstanding_executions)),
+                "verified": True,  # We only included verified executions
+                "confidence": overall_confidence
+            },
+            confidence=overall_confidence,
+            references=synthesis_references
+        )
+        
+        # Send a human-friendly explanation
+        self.send_message(
+            MessageType.EXPLANATION, 
+            {
+                "title": "Solution Explanation",
+                "content": solution_explanation,
+                "summary": self._generate_solution_summary(problem_text, solution_parts)
+            },
+            confidence=overall_confidence,
+            references=[synthesis_message_id]
+        )
+        
+        # Clear tracking data after synthesis
+        self.outstanding_executions = {}
+        self.execution_results = {}
+        self.verification_results = {}
+    
+    def _generate_solution_explanation(self, problem, strategy, executions):
+        """Generate a human-friendly explanation of the solution process"""
+        if not executions:
+            return "No solution steps were successfully executed."
+        
+        approach = strategy.get("high_level_approach", strategy.get("overall_approach", "Mathematical problem-solving approach"))
+        
+        explanation = f"To solve this problem, we used a {approach}. "
+        explanation += f"This involved {len(executions)} key steps: "
+        
+        for i, exec_data in enumerate(executions):
+            execution = exec_data["execution"]
+            step_description = execution.get("step_description", execution.get("strategy_applied", f"Step {i+1}"))
+            explanation += f"{i+1}) {step_description}, "
+        
+        explanation = explanation.rstrip(", ") + ". "
+        
+        # Add a conclusion about the answer
+        if executions:
+            final_execution = executions[-1]["execution"]
+            if "result" in final_execution:
+                explanation += f"This led us to the answer: {final_execution['result']}."
+        
+        return explanation
+    
+    def _generate_solution_summary(self, problem, solution_parts):
+        """Generate a brief summary of the solution"""
+        answer_part = next((part for part in solution_parts if part.get("section") == "Answer"), None)
+        
+        if answer_part:
+            return f"Problem: {problem[:100]}{'...' if len(problem) > 100 else ''}\nAnswer: {answer_part['content']}"
+        else:
+            return f"Problem: {problem[:100]}{'...' if len(problem) > 100 else ''}\nSolution completed."
+
+
+class MetaCognitiveAgent(Agent):
+    """Agent that dynamically allocates resources and manages the problem-solving process"""
+    
+    def __init__(self, workspace: Workspace):
+        super().__init__("MetaCognitive", workspace)
+        self.workspace.subscribe(self.id, [msg_type for msg_type in MessageType])
+        
+        # Track the state of the problem-solving process
+        self.current_phase = "waiting_for_problem"  # Initial state
+        self.phase_transitions = {
+            "waiting_for_problem": "analysis",
+            "analysis": "strategy_formulation",
+            "strategy_formulation": "execution",
+            "execution": "verification",
+            "verification": "synthesis",
+            "synthesis": "waiting_for_problem"  # Cycle back to the beginning
+        }
+        
+        # Track resource allocation
+        self.resource_allocation = {
+            "ProblemAnalyzer": 1.0,
+            "Strategy": 0.5,
+            "AlgebraExecutor": 0.5,
+            "CalculusExecutor": 0.5,
+            "GeometryExecutor": 0.5,
+            "StatisticsExecutor": 0.5,
+            "NumberTheoryExecutor": 0.5,
+            "KnowledgeBase": 0.7,
+            "AnalogicalReasoning": 0.5,
+            "Intuition": 0.3,
+            "Verifier": 0.5,
+            "Debate": 0.3,
+            "Synthesizer": 0.5
+        }
+        
+        # Track problem-solving metrics
+        self.metrics = {
+            "problem_complexity": 0.0,
+            "solution_confidence": 0.0,
+            "verification_rate": 0.0,
+            "debate_activity": 0.0,
+            "execution_success_rate": 0.0,
+            "time_in_phase": {}
+        }
+        
+        # Track phase history
+        self.phase_history = []
+        self.phase_start_time = 0
+    
+    def step(self):
+        new_messages = self.get_new_messages()
+        
+        # Update problem-solving state based on messages
+        self.update_state(new_messages)
+        
+        # Update metrics
+        self.update_metrics()
+        
+        # Make resource allocation decisions
+        self.allocate_resources()
+        
+        # Check for phase transitions
+        self.check_phase_transition()
+    
+    def update_state(self, new_messages: List[Message]):
+        """Update problem-solving state based on new messages"""
+        # Update current phase based on message types
+        previous_phase = self.current_phase
+        
+        for msg in new_messages:
+            if msg.type == MessageType.PROBLEM:
+                self.current_phase = "analysis"
+                break
+                
+            elif msg.type == MessageType.ANALYSIS and self.current_phase == "analysis":
+                self.current_phase = "strategy_formulation"
+                break
+                
+            elif msg.type == MessageType.STRATEGY and self.current_phase == "strategy_formulation":
+                self.current_phase = "execution"
+                break
+                
+            elif msg.type == MessageType.VERIFICATION and self.current_phase == "execution":
+                # Check if most execution steps have verification
+                execution_msgs = [m for m in self.workspace.messages if m.type == MessageType.EXECUTION]
+                verification_msgs = [m for m in self.workspace.messages if m.type == MessageType.VERIFICATION]
+                
+                if execution_msgs and len(verification_msgs) / len(execution_msgs) >= 0.7:
+                    self.current_phase = "verification"
+                break
+                
+            elif msg.type == MessageType.SYNTHESIS and self.current_phase == "verification":
+                self.current_phase = "synthesis"
+                break
+            
+            elif msg.type == MessageType.EXPLANATION and self.current_phase == "synthesis":
+                self.current_phase = "waiting_for_problem"
+                break
+        
+        # If phase changed, update history
+        if previous_phase != self.current_phase:
+            time_in_phase = self.workspace.current_time - self.phase_start_time
+            self.phase_history.append({
+                "phase": previous_phase,
+                "duration": time_in_phase,
+                "transition_time": self.workspace.current_time
+            })
+            self.phase_start_time = self.workspace.current_time
+            
+            # Update time in phase metric
+            self.metrics["time_in_phase"][previous_phase] = self.metrics["time_in_phase"].get(previous_phase, 0) + time_in_phase
+    
+    def update_metrics(self):
+        """Update problem-solving metrics"""
+        # Update problem complexity
+        analysis_msgs = [msg for msg in self.workspace.messages if msg.type == MessageType.ANALYSIS]
+        if analysis_msgs:
+            latest_analysis = max(analysis_msgs, key=lambda x: x.timestamp).content
+            self.metrics["problem_complexity"] = latest_analysis.get("complexity", 0.5)
+        
+        # Update solution confidence
+        execution_msgs = [msg for msg in self.workspace.messages if msg.type == MessageType.EXECUTION]
+        if execution_msgs:
+            confidences = [msg.confidence for msg in execution_msgs]
+            self.metrics["solution_confidence"] = sum(confidences) / len(confidences) if confidences else 0.0
+        
+        # Update verification rate
+        if execution_msgs:
+            verification_msgs = [msg for msg in self.workspace.messages if msg.type == MessageType.VERIFICATION]
+            self.metrics["verification_rate"] = len(verification_msgs) / len(execution_msgs)
+        
+        # Update debate activity
+        debate_msgs = [msg for msg in self.workspace.messages if msg.type == MessageType.DEBATE]
+        total_msgs = len(self.workspace.messages)
+        self.metrics["debate_activity"] = len(debate_msgs) / total_msgs if total_msgs > 0 else 0.0
+        
+        # Update execution success rate
+        if execution_msgs:
+            # Consider an execution successful if its confidence is high
+            successful_executions = sum(1 for msg in execution_msgs if msg.confidence > 0.7)
+            self.metrics["execution_success_rate"] = successful_executions / len(execution_msgs)
+    
+    def allocate_resources(self):
+        """Allocate resources to different agents based on the current state"""
+        # Reset allocations
+        for agent in self.resource_allocation:
+            self.resource_allocation[agent] = 0.5  # Default allocation
+        
+        # Allocate based on current phase and metrics
+        if self.current_phase == "analysis":
+            self.resource_allocation["ProblemAnalyzer"] = 1.0
+            self.resource_allocation["KnowledgeBase"] = 0.8
+            self.resource_allocation["Intuition"] = 0.8
+            
+        elif self.current_phase == "strategy_formulation":
+            self.resource_allocation["Strategy"] = 1.0
+            self.resource_allocation["KnowledgeBase"] = 0.9
+            self.resource_allocation["AnalogicalReasoning"] = 0.8
+            self.resource_allocation["Intuition"] = 0.8
+            self.resource_allocation["Debate"] = 0.7
+            
+        elif self.current_phase == "execution":
+            # Allocate to the most relevant executor
