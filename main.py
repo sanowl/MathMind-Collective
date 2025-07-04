@@ -1,7 +1,6 @@
 import numpy as np
 import sympy as sp
 import re
-import random
 import json
 import time
 import logging
@@ -12,6 +11,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict, deque
 import networkx as nx
 from sklearn.cluster import KMeans
+import secrets
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -1428,7 +1428,7 @@ class KnowledgeBaseAgent(Agent):
                 self.provide_knowledge_for_problem(msg)
             elif msg.type == MessageType.STRATEGY:
                 self.provide_knowledge_for_strategy(msg)
-            elif msg.type == MessageType.EXECUTION and random.random() < 0.3:  # Only sometimes respond to executions
+            elif msg.type == MessageType.EXECUTION and secrets.SystemRandom().random() < 0.3:  # Only sometimes respond to executions
                 self.provide_knowledge_for_execution(msg)
     
     def provide_knowledge_for_problem(self, analysis_msg: Message):
@@ -1610,7 +1610,7 @@ class KnowledgeBaseAgent(Agent):
                 return True
         
         # Default: low chance of being relevant anyway
-        return random.random() < 0.2  # 20% chance of being considered relevant even without direct matches
+        return secrets.SystemRandom().random() < 0.2  # 20% chance of being considered relevant even without direct matches
     
     def search_knowledge_base(self, query: str) -> List[Dict]:
         """Search the knowledge base for specific information"""
@@ -6134,7 +6134,7 @@ class VerifierAgent(Agent):
         
         # Randomly select a subset of techniques to avoid over-verification
         if len(techniques) > 3:
-            return random.sample(techniques, 3)
+            return secrets.SystemRandom().sample(techniques, 3)
         return techniques
     
     def _verify_dimensions(self, execution, message):
@@ -6281,11 +6281,11 @@ class DebateAgent(Agent):
         # Use resource allocation to determine debate frequency
         debate_frequency = min(0.3, self.resource_allocation * 0.4)
         
-        if strategy_msgs and random.random() < debate_frequency:
-            self.challenge_strategy(random.choice(strategy_msgs), knowledge_msgs)
+        if strategy_msgs and secrets.SystemRandom().random() < debate_frequency:
+            self.challenge_strategy(secrets.choice(strategy_msgs), knowledge_msgs)
         
-        elif execution_msgs and random.random() < debate_frequency * 0.7:
-            self.challenge_execution(random.choice(execution_msgs))
+        elif execution_msgs and secrets.SystemRandom().random() < debate_frequency * 0.7:
+            self.challenge_execution(secrets.choice(execution_msgs))
     
     def challenge_based_on_verification(self, verification_msg: Message):
         """Challenge reasoning based on verification issues"""
@@ -6397,14 +6397,14 @@ class DebateAgent(Agent):
                     })
         
         # If no specific issues found, maybe challenge a random step
-        if not challenge_points and random.random() < 0.3:
+        if not challenge_points and secrets.SystemRandom().random() < 0.3:
             steps = [step for step in strategy.get("steps", []) 
                    if isinstance(step, dict) and "strategy" in step]
             
             if steps:
-                step_to_challenge = random.choice(steps)
+                step_to_challenge = secrets.choice(steps)
                 strategy_name = step_to_challenge["strategy"]
-                fallacy = random.choice(list(self.fallacies.keys()))
+                fallacy = secrets.choice(list(self.fallacies.keys()))
                 
                 challenge_points.append({
                     "issue": f"questioning_{strategy_name}",
@@ -6415,7 +6415,7 @@ class DebateAgent(Agent):
         
         # If we have challenge points, create a debate message
         if challenge_points:
-            challenge = random.choice(challenge_points)
+            challenge = secrets.choice(challenge_points)
             
             debate_content = {
                 "challenge_type": "strategy_critique",
@@ -6461,7 +6461,7 @@ class DebateAgent(Agent):
         if "result" in execution and isinstance(execution["result"], str):
             # Look for mathematical expressions in the result
             mathematical_expressions = re.findall(r'[-+]?\d+(\.\d+)?', execution["result"])
-            if mathematical_expressions and random.random() < 0.2:  # 20% chance to challenge a calculation
+            if mathematical_expressions and secrets.SystemRandom().random() < 0.2:  # 20% chance to challenge a calculation
                 challenge_points.append({
                     "issue": "calculation_verification",
                     "description": "The numerical calculations should be verified for accuracy",
@@ -6499,7 +6499,7 @@ class DebateAgent(Agent):
         
         # If we have challenge points, randomly select one and create a debate message
         if challenge_points:
-            challenge = random.choice(challenge_points)
+            challenge = secrets.choice(challenge_points)
             
             debate_content = {
                 "challenge_type": "execution_critique",
